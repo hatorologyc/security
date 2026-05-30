@@ -1,551 +1,932 @@
-/**
- * Aplikasi Patroli Petugas Keamanan berbasis Web NFC & Google Sheets
- * Backend Google Apps Script (Code.gs)
- * * * UPDATE TERBARU: Sistem Satu Level Login (Hanya Admin) dengan fitur Multi-Admin & Tapping RFID oleh Admin.
- */
-
-// Global ID Spreadsheet (Isi dengan ID Spreadsheet Anda)
-var SPREADSHEET_ID = "1z3T_Q2YuEyvNMp-rLQGPb315rkdGdRy5jK9TdIl9HBE"; 
-
-/**
- * Handle GET Requests
- * Melayani pemanggilan baca data (fetch) murni dari luar dengan metode GET
- */
-function doGet(e) {
-  var action = e.parameter.action;
-  
-  if (action) {
-    try {
-      var result;
-      if (action === "getSchedules") result = getSchedules();
-      else if (action === "getCheckpoints") result = getCheckpoints();
-      else if (action === "getPatrolLogs") result = getPatrolLogs();
-      else if (action === "getOfficers") result = getOfficers(); // Mengambil data Admin
-      else if (action === "setupDatabase") result = setupDatabase();
-      else throw new Error("Aksi GET tidak dikenal: " + action);
-      
-      return ContentService.createTextOutput(JSON.stringify({ success: true, data: result }))
-                           .setMimeType(ContentService.MimeType.JSON);
-    } catch(err) {
-      return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
-                           .setMimeType(ContentService.MimeType.JSON);
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sistem Patroli RFID Petugas Keamanan</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Custom Styling & Ripple animation */
+    .nfc-pulse {
+      animation: pulse 2s infinite;
     }
-  }
-  
-  try {
-    return HtmlService.createTemplateFromFile('index')
-        .evaluate()
-        .setTitle('Sistem Patroli Keamanan - Admin')
-        .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
-        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  } catch(e) {
-    return ContentService.createTextOutput("Sistem Patroli API Aktif. Silakan gunakan parameter yang sesuai.");
-  }
-}
-
-/**
- * Handle POST Requests (API Endpoint)
- * Melayani input data (append) dan autentikasi user dari luar
- */
-function doPost(e) {
-  try {
-    var postData;
-    
-    if (e.postData && e.postData.contents) {
-      postData = JSON.parse(e.postData.contents);
-    } else {
-      postData = e.parameter;
-    }
-    
-    var action = postData.action;
-    var args = postData.args || [];
-    var result;
-    
-    if (action === "loginUser") result = loginUser(args[0], args[1]);
-    else if (action === "getSchedules") result = getSchedules();
-    else if (action === "getCheckpoints") result = getCheckpoints();
-    else if (action === "getPatrolLogs") result = getPatrolLogs();
-    else if (action === "submitPatrolLog") result = submitPatrolLog(args[0]);
-    else if (action === "getOfficers") result = getOfficers(); // Mengambil data Admin
-    else if (action === "saveOfficer") result = saveOfficer(args[0]); // Menyimpan data Admin
-    else if (action === "deleteOfficer") result = deleteOfficer(args[0]); // Menghapus data Admin
-    else if (action === "saveCheckpoint") result = saveCheckpoint(args[0]);
-    else if (action === "deleteCheckpoint") result = deleteCheckpoint(args[0]);
-    else if (action === "saveSchedule") result = saveSchedule(args[0]);
-    else if (action === "deleteSchedule") result = deleteSchedule(args[0]);
-    else if (action === "setupDatabase") result = setupDatabase();
-    else throw new Error("Aksi POST tidak dikenal: " + action);
-    
-    return ContentService.createTextOutput(JSON.stringify({ success: true, data: result }))
-                         .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
-                         .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-/**
- * Mendapatkan atau menginisialisasi spreadsheet database
- */
-function getDb() {
-  if (SPREADSHEET_ID) {
-    try {
-      return SpreadsheetApp.openById(SPREADSHEET_ID);
-    } catch(err) {
-      console.warn("Gagal membuka SPREADSHEET_ID, mencoba fallback ke active spreadsheet.");
-    }
-  }
-  try {
-    return SpreadsheetApp.getActiveSpreadsheet();
-  } catch(e) {
-    var newSs = SpreadsheetApp.create("Database_Patroli_Keamanan");
-    SPREADSHEET_ID = newSs.getId();
-    return newSs;
-  }
-}
-
-/**
- * FUNGSI SETUP DATABASE AWAL (Hanya Admin)
- */
-function setupDatabase() {
-  var ss = getDb();
-  
-  // 1. Sheet Users (Tabel Admin)
-  var userSheet = ss.getSheetByName("Users");
-  if (!userSheet) {
-    userSheet = ss.insertSheet("Users");
-    userSheet.appendRow(["ID Admin", "Nama Lengkap", "PIN", "Role"]);
-    userSheet.appendRow(["admin", "Administrator Utama", "1234", "Admin"]);
-    userSheet.appendRow(["admin2", "Budi Santoso (Admin)", "1111", "Admin"]);
-    userSheet.appendRow(["admin3", "Joko Susilo (Admin)", "2222", "Admin"]);
-  } else {
-    // Sesuaikan header jika database lama masih menggunakan format lama
-    userSheet.getRange(1, 1).setValue("ID Admin");
-    userSheet.getRange(1, 2).setValue("Nama Lengkap");
-    userSheet.getRange(1, 3).setValue("PIN");
-    userSheet.getRange(1, 4).setValue("Role");
-  }
-  
-  // 2. Sheet Checkpoints (Titik RFID)
-  var checkpointSheet = ss.getSheetByName("Checkpoints");
-  if (!checkpointSheet) {
-    checkpointSheet = ss.insertSheet("Checkpoints");
-    checkpointSheet.appendRow(["UID RFID", "Nama Lokasi", "Deskripsi"]);
-    checkpointSheet.appendRow(["04:a1:b2:c3:d4:e5:f6", "Gerbang Utama", "Pos Depan Pintu Masuk"]);
-    checkpointSheet.appendRow(["04:f6:e5:d4:c3:b2:a1", "Gudang Belakang", "Area Penyimpanan Logistik"]);
-  }
-  
-  // 3. Sheet Schedules (Jadwal Patroli)
-  var scheduleSheet = ss.getSheetByName("Schedules");
-  if (!scheduleSheet) {
-    scheduleSheet = ss.insertSheet("Schedules");
-    scheduleSheet.appendRow(["ID Jadwal", "Nama Shift", "Jam Mulai", "Jam Selesai", "Keterangan"]);
-    scheduleSheet.appendRow(["S1", "Shift Pagi", "08:00", "12:00", "Patroli berkala setiap 2 jam"]);
-    scheduleSheet.appendRow(["S2", "Shift Siang", "13:00", "17:00", "Patroli berkala setiap 2 jam"]);
-    scheduleSheet.appendRow(["S3", "Shift Malam", "20:00", "04:00", "Patroli ketat setiap 1 jam"]);
-  }
-  
-  // 4. Sheet PatrolLogs (Log Tap RFID oleh Admin)
-  var logSheet = ss.getSheetByName("PatrolLogs");
-  if (!logSheet) {
-    logSheet = ss.insertSheet("PatrolLogs");
-    logSheet.appendRow(["Waktu Tap", "ID Admin", "Nama Admin", "UID RFID", "Nama Lokasi", "Status", "Catatan"]);
-  } else {
-    logSheet.getRange(1, 2).setValue("ID Admin");
-    logSheet.getRange(1, 3).setValue("Nama Admin");
-  }
-  
-  var defaultSheet = ss.getSheetByName("Sheet1");
-  if (defaultSheet) {
-    try { ss.deleteSheet(defaultSheet); } catch(e) {}
-  }
-  
-  return {
-    success: true,
-    spreadsheetUrl: ss.getUrl(),
-    spreadsheetId: ss.getId()
-  };
-}
-
-/**
- * Autentikasi Pengguna (Hanya Admin)
- */
-function loginUser(userId, pin) {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("Users");
-  if (!sheet) {
-    return { success: false, message: "Database Admin belum diinisialisasi! Jalankan Setup terlebih dahulu." };
-  }
-  var data = sheet.getDataRange().getValues();
-  
-  if (userId === null || userId === undefined || pin === null || pin === undefined) {
-    return { success: false, message: "ID Admin dan PIN tidak boleh kosong!" };
-  }
-
-  var inputId = userId.toString().trim().toLowerCase();
-  var inputPin = pin.toString().trim().split('.')[0]; 
-  
-  for (var i = 1; i < data.length; i++) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue; 
-    
-    var dbId = data[i][0].toString().trim().toLowerCase();
-    var rawDbPin = data[i][2];
-    var dbPin = "";
-    if (typeof rawDbPin === "number") {
-      dbPin = Math.round(rawDbPin).toString();
-    } else {
-      dbPin = rawDbPin ? rawDbPin.toString().trim().split('.')[0] : "";
-    }
-    
-    if (dbId === inputId && dbPin === inputPin) {
-      return {
-        success: true,
-        userId: data[i][0].toString(),
-        name: data[i][1].toString(),
-        role: "Admin" // Semua dipastikan login sebagai Admin
-      };
-    }
-  }
-  return { success: false, message: "ID Admin atau PIN salah!" };
-}
-
-/**
- * Mendapatkan Daftar Admin
- */
-function getOfficers() {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("Users");
-  if (!sheet) return [];
-  var data = sheet.getDataRange().getValues();
-  var officers = [];
-  
-  for (var i = 1; i < data.length; i++) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue; 
-    
-    var rawPin = data[i][2];
-    var formattedPin = "";
-    if (rawPin !== null && rawPin !== undefined) {
-      formattedPin = typeof rawPin === "number" ? Math.round(rawPin).toString() : rawPin.toString().trim().split('.')[0];
-    }
-    
-    officers.push({
-      id: safeString(data[i][0]),
-      name: safeString(data[i][1]),
-      pin: formattedPin,
-      role: "Admin" // Tetap paksa sebagai Admin
-    });
-  }
-  return officers;
-}
-
-/**
- * Tambah atau Update Admin
- */
-function saveOfficer(officer) {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("Users");
-  var data = sheet.getDataRange().getValues();
-  var foundIndex = -1;
-  
-  var targetId = officer.id.toString().trim().toLowerCase();
-  
-  for (var i = 1; i < data.length; i++) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue;
-    if (data[i][0].toString().trim().toLowerCase() === targetId) {
-      foundIndex = i + 1;
-      break;
-    }
-  }
-  
-  var cleanPin = officer.pin.toString().trim().split('.')[0];
-  
-  if (foundIndex > -1) {
-    sheet.getRange(foundIndex, 2).setValue(officer.name);
-    sheet.getRange(foundIndex, 3).setValue("'" + cleanPin); 
-    sheet.getRange(foundIndex, 4).setValue("Admin"); // Set default role sebagai Admin
-  } else {
-    sheet.appendRow([officer.id, officer.name, "'" + cleanPin, "Admin"]);
-  }
-  return { success: true };
-}
-
-/**
- * Hapus Admin
- */
-function deleteOfficer(id) {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("Users");
-  var data = sheet.getDataRange().getValues();
-  
-  for (var i = 1; i < data.length; i++) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue;
-    if (data[i][0].toString().trim().toLowerCase() === id.toString().trim().toLowerCase()) {
-      sheet.deleteRow(i + 1);
-      return { success: true };
-    }
-  }
-  return { success: false, message: "Admin tidak ditemukan" };
-}
-
-/**
- * Mendapatkan Daftar Checkpoint (RFID)
- */
-function getCheckpoints() {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("Checkpoints");
-  if (!sheet) return [];
-  var data = sheet.getDataRange().getValues();
-  var checkpoints = [];
-  
-  for (var i = 1; i < data.length; i++) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue; 
-    
-    checkpoints.push({
-      uid: safeString(data[i][0]),
-      name: safeString(data[i][1]),
-      description: safeString(data[i][2])
-    });
-  }
-  return checkpoints;
-}
-
-/**
- * Tambah atau Update Checkpoint RFID
- */
-function saveCheckpoint(checkpoint) {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("Checkpoints");
-  var data = sheet.getDataRange().getValues();
-  var foundIndex = -1;
-  
-  for (var i = 1; i < data.length; i++) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue;
-    if (data[i][0].toString().toLowerCase() === checkpoint.uid.toLowerCase()) {
-      foundIndex = i + 1;
-      break;
-    }
-  }
-  
-  if (foundIndex > -1) {
-    sheet.getRange(foundIndex, 2).setValue(checkpoint.name);
-    sheet.getRange(foundIndex, 3).setValue(checkpoint.description);
-  } else {
-    sheet.appendRow([checkpoint.uid.toLowerCase(), checkpoint.name, checkpoint.description]);
-  }
-  return { success: true };
-}
-
-/**
- * Hapus Checkpoint
- */
-function deleteCheckpoint(uid) {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("Checkpoints");
-  var data = sheet.getDataRange().getValues();
-  
-  for (var i = 1; i < data.length; i++) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue;
-    if (data[i][0].toString().toLowerCase() === uid.toLowerCase()) {
-      sheet.deleteRow(i + 1);
-      return { success: true };
-    }
-  }
-  return { success: false, message: "Checkpoint tidak ditemukan" };
-}
-
-/**
- * Mendapatkan Jadwal Patroli
- */
-function getSchedules() {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("Schedules");
-  if (!sheet) return [];
-  var data = sheet.getDataRange().getValues();
-  var schedules = [];
-  
-  for (var i = 1; i < data.length; i++) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue; 
-    
-    schedules.push({
-      id: safeString(data[i][0]),
-      name: safeString(data[i][1]),
-      startTime: safeString(data[i][2]),
-      endTime: safeString(data[i][3]),
-      description: safeString(data[i][4])
-    });
-  }
-  return schedules;
-}
-
-/**
- * Tambah atau Update Jadwal
- */
-function saveSchedule(schedule) {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("Schedules");
-  var data = sheet.getDataRange().getValues();
-  var foundIndex = -1;
-  
-  for (var i = 1; i < data.length; i++) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue;
-    if (data[i][0].toString().trim().toLowerCase() === schedule.id.toString().trim().toLowerCase()) {
-      foundIndex = i + 1;
-      break;
-    }
-  }
-  
-  if (foundIndex > -1) {
-    sheet.getRange(foundIndex, 2).setValue(schedule.name);
-    sheet.getRange(foundIndex, 3).setValue(schedule.startTime);
-    sheet.getRange(foundIndex, 4).setValue(schedule.endTime);
-    sheet.getRange(foundIndex, 5).setValue(schedule.description);
-  } else {
-    sheet.appendRow([schedule.id, schedule.name, schedule.startTime, schedule.endTime, schedule.description]);
-  }
-  return { success: true };
-}
-
-/**
- * Hapus Jadwal
- */
-function deleteSchedule(id) {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("Schedules");
-  var data = sheet.getDataRange().getValues();
-  
-  for (var i = 1; i < data.length; i++) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue;
-    if (data[i][0].toString().trim().toLowerCase() === id.toString().trim().toLowerCase()) {
-      sheet.deleteRow(i + 1);
-      return { success: true };
-    }
-  }
-  return { success: false, message: "Jadwal tidak ditemukan" };
-}
-
-/**
- * Menulis Hasil Tap / Scan Patroli oleh Admin ke Log Spreadsheet
- */
-function submitPatrolLog(logData) {
-  var ss = getDb();
-  var logSheet = ss.getSheetByName("PatrolLogs");
-  var checkpointSheet = ss.getSheetByName("Checkpoints");
-  var userSheet = ss.getSheetByName("Users");
-  
-  var checkpointData = checkpointSheet.getDataRange().getValues();
-  var userData = userSheet.getDataRange().getValues();
-  
-  var locationName = "Titik Tidak Terdaftar";
-  var adminName = "Admin Tidak Dikenal";
-  
-  // Cari nama lokasi berdasarkan RFID UID
-  for (var i = 1; i < checkpointData.length; i++) {
-    if (!checkpointData[i][0] || checkpointData[i][0].toString().trim() === "") continue;
-    if (checkpointData[i][0].toString().toLowerCase() === logData.uid.toLowerCase()) {
-      locationName = checkpointData[i][1];
-      break;
-    }
-  }
-  
-  // Cari nama Admin berdasarkan ID yang sedang login
-  for (var j = 1; j < userData.length; j++) {
-    if (!userData[j][0] || userData[j][0].toString().trim() === "") continue;
-    if (userData[j][0].toString().toLowerCase() === logData.officerId.toString().toLowerCase()) {
-      adminName = userData[j][1];
-      break;
-    }
-  }
-  
-  // Evaluasi Waktu Patroli
-  var status = "Sesuai Jadwal";
-  if (logData.scheduleId) {
-    var schedules = getSchedules();
-    var activeSched = schedules.find(function(s) { return s.id === logData.scheduleId; });
-    if (activeSched) {
-      var now = new Date();
-      var currentHourMin = Utilities.formatDate(now, Session.getScriptTimeZone(), "HH:mm");
-      
-      if (currentHourMin < activeSched.startTime || currentHourMin > activeSched.endTime) {
-        status = "Luar Jam Dinas (" + activeSched.name + ")";
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 20px rgba(59, 130, 246, 0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
       }
     }
-  }
-  
-  var timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-  
-  // Tulis baris baru ke log
-  logSheet.appendRow([
-    timestamp,
-    logData.officerId,
-    adminName,
-    logData.uid.toLowerCase(),
-    locationName,
-    status,
-    logData.notes || "-"
-  ]);
-  
-  return {
-    success: true,
-    timestamp: timestamp,
-    location: locationName,
-    officer: adminName,
-    status: status
-  };
-}
+    /* Spin animation for sync button */
+    .spin-active {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased">
 
-/**
- * Mendapatkan Semua Log Patroli (Batas maks 500 baris terakhir untuk performa)
- */
-function getPatrolLogs() {
-  var ss = getDb();
-  var sheet = ss.getSheetByName("PatrolLogs");
-  if (!sheet) return [];
-  var data = sheet.getDataRange().getValues();
-  var logs = [];
-  
-  var startRow = Math.max(1, data.length - 500);
-  for (var i = data.length - 1; i >= startRow; i--) {
-    if (!data[i][0] || data[i][0].toString().trim() === "") continue; 
+  <!-- TOP HEADER BANNER -->
+  <header class="bg-blue-900 text-white shadow-md sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-blue-800 p-2 rounded-lg">
+          <i data-lucide="shield-alert" class="w-6 h-6 text-yellow-400"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold leading-none tracking-tight">E-Patrol Security</h1>
+          <span class="text-xs text-blue-200">Guard Patrol Monitoring System</span>
+        </div>
+      </div>
+      
+      <!-- USER INFO & SYNC BUTTON -->
+      <div id="userInfo" class="hidden flex items-center space-x-3">
+        <!-- TOMBOL SINKRONKAN DATA -->
+        <button onclick="manualSync()" id="syncHeaderBtn" class="flex items-center space-x-1.5 bg-blue-800 hover:bg-blue-700 active:bg-blue-950 text-white text-xs px-3 py-2 rounded-xl transition-all border border-blue-700 font-semibold shadow-sm" title="Ambil data terbaru dari Spreadsheet">
+          <i data-lucide="refresh-cw" class="w-4 h-4" id="syncHeaderIcon"></i>
+          <span class="hidden md:inline">Sinkronkan Data</span>
+        </button>
+
+        <div class="text-right">
+          <p id="userDisplayName" class="text-sm font-semibold leading-tight">-</p>
+          <span id="userDisplayRole" class="text-xs bg-blue-800 text-blue-200 px-2 py-0.5 rounded-full">-</span>
+        </div>
+        <button onclick="logout()" class="p-2 bg-red-600 hover:bg-red-700 rounded-lg text-white transition-all shadow-sm" title="Keluar">
+          <i data-lucide="log-out" class="w-5 h-5"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-grow max-w-6xl w-full mx-auto p-4 md:py-6">
     
-    logs.push({
-      timestamp: safeTimestamp(data[i][0]),
-      officerId: safeString(data[i][1]),
-      officerName: safeString(data[i][2]),
-      uid: safeString(data[i][3]),
-      location: safeString(data[i][4]),
-      status: safeString(data[i][5]),
-      notes: safeString(data[i][6])
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 space-y-2 pointer-events-none max-w-sm w-full"></div>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white transition-opacity duration-300 hidden">
+      <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+      <p id="loadingMessage" class="text-lg font-medium text-slate-100">Sedang memuat data...</p>
+    </div>
+
+    <!-- API CONFIGURATION MODAL (FOR STANDALONE WEB PAGES) -->
+    <div id="apiConfigModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100">
+        <div class="p-6 bg-blue-900 text-white flex items-center space-x-3">
+          <div class="bg-blue-800 p-2 rounded-xl text-yellow-400">
+            <i data-lucide="settings" class="w-6 h-6 animate-spin"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg">Konfigurasi API Google</h3>
+            <p class="text-xs text-blue-200">Hubungkan halaman mandiri ke Google Sheet Anda</p>
+          </div>
+        </div>
+        <div class="p-6 space-y-4">
+          <p class="text-sm text-slate-600">
+            Aplikasi ini sedang berjalan mandiri di luar Google IFrame (NFC Aktif!). Agar data tersinkronisasi, masukkan <strong>URL Web App</strong> Google Apps Script Anda.
+          </p>
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">URL Web App Google (Harus berakhiran /exec)</label>
+            <input type="text" id="configApiUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+            <p id="configApiUrlError" class="text-xs text-red-600 mt-1 hidden font-semibold"></p>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 flex items-start space-x-2">
+            <i data-lucide="help-circle" class="w-5 h-5 shrink-0 mt-0.5 text-amber-600"></i>
+            <div>
+              <span class="font-bold">PENTING:</span> Jangan masukkan URL editor skrip atau URL Spreadsheet. URL yang benar diperoleh saat Anda melakukan <strong>Deploy > New Deployment</strong> dengan akses <strong>Anyone</strong>.
+            </div>
+          </div>
+          <div class="flex space-x-2 pt-2">
+            <button onclick="saveApiConfiguration()" class="flex-grow bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-500/10">
+              Simpan Konfigurasi
+            </button>
+            <button id="closeApiModalBtn" onclick="toggleApiModal(false)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-3 rounded-xl transition-all hidden">
+              Batal
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETUP DATABASE BANNER -->
+    <div id="setupBanner" class="hidden mb-6 p-4 bg-yellow-50 border border-yellow-300 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-start space-x-3">
+        <i data-lucide="database" class="w-6 h-6 text-yellow-600 shrink-0 mt-0.5"></i>
+        <div>
+          <h3 class="font-bold text-yellow-800">Inisialisasi Sistem Baru</h3>
+          <p class="text-sm text-yellow-700">Database Google Spreadsheet belum terpasang atau perlu diperbarui. Klik tombol untuk mengonfigurasi otomatis.</p>
+        </div>
+      </div>
+      <button onclick="handleSetupDatabase()" class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center space-x-2 shrink-0 transition shadow">
+        <i data-lucide="play-circle" class="w-5 h-5"></i>
+        <span>Jalankan Setup</span>
+      </button>
+    </div>
+
+    <!-- ================== 1. LOGIN SCREEN ================== -->
+    <section id="loginSection" class="max-w-md mx-auto my-12 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+      <div class="p-8 text-center bg-gradient-to-b from-blue-900 to-blue-950 text-white">
+        <div class="inline-block bg-white/10 p-4 rounded-full mb-3">
+          <i data-lucide="shield" class="w-12 h-12 text-yellow-400"></i>
+        </div>
+        <h2 class="text-2xl font-bold">Masuk Aplikasi</h2>
+        <p class="text-slate-300 text-sm mt-1">Silakan masukkan ID dan PIN Keamanan Anda</p>
+      </div>
+      
+      <form onsubmit="handleLogin(event)" class="p-8 space-y-6">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">ID Petugas / Admin</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+              <i data-lucide="user" class="w-5 h-5"></i>
+            </span>
+            <input type="text" id="loginId" required placeholder="Contoh: admin atau P001" class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">PIN Keamanan (4 Digit)</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+              <i data-lucide="key-round" class="w-5 h-5"></i>
+            </span>
+            <input type="password" id="loginPin" required maxlength="4" pattern="[0-9]*" inputmode="numeric" placeholder="••••" class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl tracking-widest text-lg focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all">
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-blue-500/20 flex items-center justify-center space-x-2">
+          <span>Sign In</span>
+          <i data-lucide="arrow-right" class="w-5 h-5"></i>
+        </button>
+      </form>
+    </section>
+
+    <!-- ================== 2. OFFICER / PATROL SCREEN ================== -->
+    <section id="officerSection" class="hidden space-y-6">
+      
+      <!-- Welcome & Info Card -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-gradient-to-br from-blue-700 to-blue-900 text-white p-6 rounded-2xl shadow-md flex items-center space-x-4">
+          <div class="bg-white/10 p-3 rounded-xl">
+            <i data-lucide="clock" class="w-8 h-8 text-yellow-400"></i>
+          </div>
+          <div>
+            <p class="text-blue-200 text-xs font-semibold tracking-wider uppercase">Jadwal Shift Aktif</p>
+            <h4 id="activeShiftName" class="text-lg font-bold">Mencari Jadwal...</h4>
+            <p id="activeShiftHours" class="text-sm text-blue-100">-</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
+          <div class="bg-green-100 p-3 rounded-xl text-green-600">
+            <i data-lucide="map-pin" class="w-8 h-8"></i>
+          </div>
+          <div>
+            <p class="text-slate-400 text-xs font-semibold tracking-wider uppercase">Titik Checkpoint Terdata</p>
+            <h4 id="checkpointCount" class="text-2xl font-black">0</h4>
+            <p class="text-xs text-slate-500">Siap dipatroli menggunakan RFID</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center space-x-4">
+          <div class="bg-blue-100 p-3 rounded-xl text-blue-600">
+            <i data-lucide="history" class="w-8 h-8"></i>
+          </div>
+          <div>
+            <p class="text-slate-400 text-xs font-semibold tracking-wider uppercase">Total Tap Hari Ini</p>
+            <h4 id="officerTodayTaps" class="text-2xl font-black">0</h4>
+            <p class="text-xs text-slate-500">Kehadiran titik patroli terjaga</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- NFC Patrol Scanner Dashboard -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h3 class="text-lg font-bold flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 bg-blue-600 rounded-full animate-ping"></span>
+              <span>Scanning RFID/NFC Aktif</span>
+            </h3>
+            <p class="text-xs text-slate-500">Dekatkan bagian belakang HP Android Anda pada kartu RFID / Tag NFC di lokasi</p>
+          </div>
+          <!-- NFC Support Alert Badge -->
+          <div id="nfcSupportBadge" class="self-start text-xs px-3 py-1.5 rounded-full flex items-center space-x-1">
+            <i data-lucide="help-circle" class="w-3.5 h-3.5"></i>
+            <span id="nfcSupportText">Mengecek Dukungan NFC...</span>
+          </div>
+        </div>
+
+        <div class="p-8 flex flex-col items-center justify-center text-center">
+          <!-- NFC Pulse Target -->
+          <div id="nfcScanArea" class="w-48 h-48 bg-blue-50 text-blue-600 rounded-full flex flex-col items-center justify-center cursor-pointer nfc-pulse hover:bg-blue-100 transition duration-300 relative mb-6" onclick="triggerWebNFCScan()">
+            <i data-lucide="nfc" class="w-16 h-16 mb-2"></i>
+            <span class="text-xs font-bold uppercase tracking-wider">Tap Kartu RFID</span>
+            <!-- Decorative Border -->
+            <div class="absolute inset-2 border border-blue-300 border-dashed rounded-full pointer-events-none"></div>
+          </div>
+
+          <div class="max-w-md w-full">
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+              <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide text-left mb-1.5">Catatan Tambahan (Opsional)</label>
+              <textarea id="patrolNotes" rows="2" placeholder="Tulis catatan jika ada temuan (misal: 'Pintu gerbang aman locked', 'Lampu padam', dll.)" class="w-full text-sm bg-white border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500 transition-all"></textarea>
+            </div>
+
+            <!-- MANUAL INPUT -->
+            <div class="border-t border-slate-100 pt-4 mt-2">
+              <button onclick="toggleManualInput()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold underline flex items-center justify-center mx-auto space-x-1">
+                <i data-lucide="keyboard" class="w-4 h-4"></i>
+                <span>Gunakan Input Manual (Uji Coba / Alternatif)</span>
+              </button>
+              
+              <div id="manualInputContainer" class="hidden mt-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-left">
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Ketik / Paste UID RFID Tag</label>
+                <div class="flex space-x-2">
+                  <input type="text" id="manualUid" placeholder="Contoh: 04:a1:b2:c3:d4:e5:f6" class="flex-grow text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                  <button onclick="submitManualPatrol()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-sm transition-all shadow hover:shadow-blue-500/10">Kirim</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Riwayat Terkini Petugas Ini -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+          <h3 class="text-lg font-bold flex items-center space-x-2">
+            <i data-lucide="history" class="w-5 h-5 text-slate-500"></i>
+            <span>Aktivitas Patroli Terkini Anda</span>
+          </h3>
+          <button onclick="manualSync()" class="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center space-x-1">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span>Sinkronkan Ulang</span>
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <th class="py-3 px-6">Waktu Tap</th>
+                <th class="py-3 px-6">Lokasi / Checkpoint</th>
+                <th class="py-3 px-6">UID RFID</th>
+                <th class="py-3 px-6">Status</th>
+                <th class="py-3 px-6">Catatan</th>
+              </tr>
+            </thead>
+            <tbody id="officerLogTableBody" class="divide-y divide-slate-100 text-sm">
+              <tr>
+                <td colspan="5" class="py-6 text-center text-slate-400">Belum ada log patroli hari ini</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- APP FOOTER -->
+  <footer class="bg-slate-900 text-slate-400 py-6 border-t border-slate-800 mt-auto">
+    <div class="max-w-6xl mx-auto px-4 text-center space-y-2">
+      <p class="text-sm">Sistem Aplikasi Patroli Keamanan - Terintegrasi Google Sheets</p>
+      <div class="flex items-center justify-center space-x-4 text-xs text-slate-500">
+        <span>WebNFC API</span>
+        <span>•</span>
+        <span>Secured Cloud DB</span>
+        <span>•</span>
+        <span>Android Compatible</span>
+      </div>
+      <!-- API CONFIGURATION TRIGGERS -->
+      <div id="apiConfigTriggerContainer" class="hidden text-xs pt-2">
+        <button onclick="toggleApiModal(true)" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-all border border-slate-700">
+          ⚙️ Atur Ulang URL Web App Google
+        </button>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // State Aplikasi
+    let currentUser = null;
+    let cachedCheckpoints = [];
+    let cachedSchedules = [];
+    let cachedLogs = [];
+    let isWebNFCAvailable = false;
+
+    // DETEKSI APAKAH DI-RUN DI LUAR IFRAME GOOGLE (STANDALONE WEB / GITHUB PAGES)
+    const IS_STANDALONE = (typeof google === 'undefined' || !google.script || !google.script.run);
+
+    // ==============================================
+    // DYNAMIC API POLYFILL / ROUTER (CORS Bypass)
+    // ==============================================
+    if (IS_STANDALONE) {
+      document.getElementById("apiConfigTriggerContainer").classList.remove("hidden");
+      
+      window.google = {
+        script: {
+          run: {
+            successHandler: null,
+            failureHandler: null,
+            withSuccessHandler: function(handler) {
+              this.successHandler = handler;
+              return this;
+            },
+            withFailureHandler: function(handler) {
+              this.failureHandler = handler;
+              return this;
+            },
+            
+            _execute: async function(actionName, args) {
+              let gasWebAppUrl = localStorage.getItem("gas_api_url") || "";
+              
+              if (!gasWebAppUrl) {
+                document.getElementById("loadingOverlay").classList.add("hidden");
+                toggleApiModal(true);
+                if (this.failureHandler) this.failureHandler("URL Web App belum diatur.");
+                return;
+              }
+              
+              const readActions = ["getSchedules", "getCheckpoints", "getPatrolLogs", "getOfficers"];
+              const isReadAction = readActions.includes(actionName);
+              
+              try {
+                let response;
+                
+                if (isReadAction) {
+                  const separator = gasWebAppUrl.includes("?") ? "&" : "?";
+                  const fetchUrl = `${gasWebAppUrl}${separator}action=${actionName}&t=${Date.now()}`;
+                  response = await fetch(fetchUrl, { method: "GET" });
+                } else {
+                  response = await fetch(gasWebAppUrl, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "text/plain;charset=utf-8"
+                    },
+                    body: JSON.stringify({
+                      action: actionName,
+                      args: args
+                    })
+                  });
+                }
+                
+                const result = await response.json();
+                if (result.success) {
+                  if (this.successHandler) this.successHandler(result.data);
+                } else {
+                  if (this.failureHandler) this.failureHandler(result.error);
+                }
+              } catch (err) {
+                console.error("Fetch API Error:", err);
+                if (this.failureHandler) this.failureHandler("Koneksi API Gagal. Pastikan URL skrip benar dan izin 'Anyone' aktif.");
+              }
+            },
+            
+            loginUser: function(u, p) { this._execute("loginUser", [u, p]); },
+            getSchedules: function() { this._execute("getSchedules", []); },
+            getCheckpoints: function() { this._execute("getCheckpoints", []); },
+            getPatrolLogs: function() { this._execute("getPatrolLogs", []); },
+            submitPatrolLog: function(l) { this._execute("submitPatrolLog", [l]); },
+            setupDatabase: function() { this._execute("setupDatabase", []); }
+          }
+        }
+      };
+    }
+
+    /**
+     * Kontrol Modal Konfigurasi URL API
+     */
+    function toggleApiModal(show) {
+      const modal = document.getElementById("apiConfigModal");
+      const closeBtn = document.getElementById("closeApiModalBtn");
+      
+      if (show) {
+        modal.classList.remove("hidden");
+        const savedUrl = localStorage.getItem("gas_api_url") || "";
+        document.getElementById("configApiUrlInput").value = savedUrl;
+        if (savedUrl) {
+          closeBtn.classList.remove("hidden");
+        } else {
+          closeBtn.classList.add("hidden");
+        }
+      } else {
+        modal.classList.add("hidden");
+      }
+    }
+
+    /**
+     * Menyimpan Konfigurasi URL Web App Google Sheets
+     */
+    function saveApiConfiguration() {
+      const urlInput = document.getElementById("configApiUrlInput").value.trim();
+      const errorEl = document.getElementById("configApiUrlError");
+      
+      errorEl.classList.add("hidden");
+      
+      if (!urlInput) {
+        errorEl.innerText = "URL Web App tidak boleh kosong!";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      
+      if (!urlInput.startsWith("https://script.google.com") || !urlInput.includes("/exec")) {
+        errorEl.innerText = "Format URL salah! URL harus berakhiran dengan /exec";
+        errorEl.classList.remove("hidden");
+        return;
+      }
+      
+      localStorage.setItem("gas_api_url", urlInput);
+      showToast("URL Web App Google Sheets berhasil disimpan!", "success");
+      toggleApiModal(false);
+      location.reload();
+    }
+
+    // Inisialisasi awal saat load halaman
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+      checkWebNFCSupport();
+      showSection("loginSection");
+      
+      if (!('NDEFReader' in window)) {
+        showToast("WebNFC tidak didukung langsung. Gunakan mode manual jika menggunakan PC atau browser non-Chrome Android.", "warning");
+      }
     });
-  }
-  return logs;
-}
 
-/**
- * Helper: Konversi data string aman
- */
-function safeString(val) {
-  if (val === null || val === undefined) return "";
-  if (val instanceof Date) {
-    try {
-      return Utilities.formatDate(val, Session.getScriptTimeZone(), "HH:mm");
-    } catch(e) {
-      return val.toString();
+    /**
+     * Memeriksa dukungan NFC pada browser
+     */
+    function checkWebNFCSupport() {
+      const badge = document.getElementById("nfcSupportBadge");
+      const text = document.getElementById("nfcSupportText");
+      
+      if ('NDEFReader' in window) {
+        isWebNFCAvailable = true;
+        badge.className = "self-start text-xs px-3 py-1.5 rounded-full flex items-center space-x-1 bg-green-100 text-green-700";
+        text.innerText = "NFC Siap";
+      } else {
+        isWebNFCAvailable = false;
+        badge.className = "self-start text-xs px-3 py-1.5 rounded-full flex items-center space-x-1 bg-yellow-100 text-yellow-700";
+        text.innerText = "NFC Manual / Non-Android";
+      }
     }
-  }
-  return val.toString().trim();
-}
 
-/**
- * Helper: Konversi timestamp tanggal secara aman
- */
-function safeTimestamp(val) {
-  if (val === null || val === undefined || val === "") return "";
-  if (val instanceof Date) {
-    try {
-      return Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-    } catch(e) {
-      return val.toString();
+    /**
+     * Trigger manual untuk scan NFC di browser (berdasarkan User Gesture)
+     */
+    async function triggerWebNFCScan() {
+      if (!isWebNFCAvailable) {
+        showToast("WebNFC tidak didukung pada browser Anda. Gunakan form input manual di bawah.", "warning");
+        toggleManualInput(true);
+        return;
+      }
+      
+      try {
+        showLoading("Mendekatkan HP Anda ke titik kartu RFID...");
+        const ndef = new NDEFReader();
+        await ndef.scan();
+        
+        ndef.addEventListener("reading", ({ message, serialNumber }) => {
+          const formattedUID = serialNumber.toLowerCase();
+          handleRfidScanned(formattedUID);
+        });
+
+        hideLoading();
+        showToast("NFC Scanner Aktif. Tempelkan kartu RFID sekarang.", "info");
+      } catch (err) {
+        hideLoading();
+        if (IS_STANDALONE) {
+          showToast("Gagal mengaktifkan sensor. Pastikan fitur NFC HP Anda sudah aktif.", "error");
+        } else {
+          showToast("Akses NFC diblokir Sandbox Google. Buka aplikasi sebagai File Mandiri atau GitHub Pages agar NFC Aktif!", "warning");
+          toggleManualInput(true);
+        }
+      }
     }
-  }
-  return val.toString().trim();
-}
+
+    /**
+     * Toggle manual input box
+     */
+    function toggleManualInput(forceShow = false) {
+      const el = document.getElementById("manualInputContainer");
+      if (forceShow || el.classList.contains("hidden")) {
+        el.classList.remove("hidden");
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+      } else {
+        el.classList.add("hidden");
+      }
+    }
+
+    /**
+     * Navigasi Tampilan Layar
+     */
+    function showSection(sectionId) {
+      document.getElementById("loginSection").classList.add("hidden");
+      document.getElementById("officerSection").classList.add("hidden");
+      
+      document.getElementById(sectionId).classList.remove("hidden");
+      
+      if (currentUser) {
+        document.getElementById("userInfo").classList.remove("hidden");
+        document.getElementById("userDisplayName").innerText = currentUser.name;
+        document.getElementById("userDisplayRole").innerText = currentUser.role;
+      } else {
+        document.getElementById("userInfo").classList.add("hidden");
+      }
+      lucide.createIcons();
+    }
+
+    /**
+     * Loading Spinner Overlay
+     */
+    function showLoading(msg = "Sedang memproses...") {
+      document.getElementById("loadingMessage").innerText = msg;
+      document.getElementById("loadingOverlay").classList.remove("hidden");
+    }
+    function hideLoading() {
+      document.getElementById("loadingOverlay").classList.add("hidden");
+    }
+
+    /**
+     * Notifikasi Toast
+     */
+    function showToast(message, type = "success") {
+      const container = document.getElementById("toastContainer");
+      const toast = document.createElement("div");
+      toast.className = `flex items-center space-x-3 p-4 rounded-xl shadow-lg border text-white transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto max-w-sm w-full`;
+      
+      let icon = "check-circle";
+      if (type === "success") {
+        toast.className += " bg-emerald-600 border-emerald-500";
+        icon = "check-circle";
+      } else if (type === "error") {
+        toast.className += " bg-rose-600 border-rose-500";
+        icon = "alert-triangle";
+      } else if (type === "warning") {
+        toast.className += " bg-amber-600 border-amber-500";
+        icon = "alert-circle";
+      } else {
+        toast.className += " bg-blue-600 border-blue-500";
+        icon = "info";
+      }
+
+      toast.innerHTML = `
+        <i data-lucide="${icon}" class="w-5 h-5 shrink-0"></i>
+        <p class="text-xs font-semibold flex-grow">${message}</p>
+        <button onclick="this.parentElement.remove()" class="text-white/80 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      `;
+      
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      setTimeout(() => {
+        toast.classList.remove("translate-y-2", "opacity-0");
+      }, 50);
+
+      setTimeout(() => {
+        toast.classList.add("translate-y-2", "opacity-0");
+        setTimeout(() => toast.remove(), 300);
+      }, 5000); 
+    }
+
+    // ==============================================
+    // LOGIN & AUTENTIKASI UTAMA
+    // ==============================================
+    function handleLogin(e) {
+      e.preventDefault();
+      const userId = document.getElementById("loginId").value.trim();
+      const pin = document.getElementById("loginPin").value;
+      
+      showLoading("Memverifikasi Kredensial...");
+      
+      google.script.run
+        .withSuccessHandler(result => {
+          hideLoading();
+          if (result.success) {
+            currentUser = {
+              id: result.userId,
+              name: result.name,
+              role: result.role
+            };
+            
+            showToast(`Selamat datang, ${result.name}!`, "success");
+            loadOfficerDashboard();
+            showSection("officerSection");
+          } else {
+            showToast(result.message || "ID atau PIN salah!", "error");
+          }
+        })
+        .withFailureHandler(err => {
+          hideLoading();
+          showToast("Koneksi gagal: " + err, "error");
+        })
+        .loginUser(userId, pin);
+    }
+
+    function logout() {
+      currentUser = null;
+      document.getElementById("loginId").value = "";
+      document.getElementById("loginPin").value = "";
+      showSection("loginSection");
+      showToast("Berhasil keluar dari sistem.", "info");
+    }
+
+    // ==============================================
+    // SINKRONISASI DATA MANUAL (GET DATA)
+    // ==============================================
+    function manualSync() {
+      const syncIcon = document.getElementById("syncHeaderIcon");
+      if (syncIcon) syncIcon.classList.add("spin-active");
+      
+      showToast("Memulai sinkronisasi data dari Google Sheets...", "info");
+      
+      if (currentUser) {
+        let schedulesLoaded = false;
+        let checkpointsLoaded = false;
+        let logsLoaded = false;
+
+        const checkAllManualLoaded = () => {
+          if (schedulesLoaded && checkpointsLoaded && logsLoaded) {
+            if (syncIcon) syncIcon.classList.remove("spin-active");
+            showToast("Sinkronisasi data sukses!", "success");
+          }
+        };
+
+        google.script.run.withSuccessHandler(schedules => {
+          cachedSchedules = schedules || [];
+          updateActiveShiftDisplay();
+          schedulesLoaded = true;
+          checkAllManualLoaded();
+        }).getSchedules();
+
+        google.script.run.withSuccessHandler(checkpoints => {
+          cachedCheckpoints = checkpoints || [];
+          document.getElementById("checkpointCount").innerText = cachedCheckpoints.length;
+          checkpointsLoaded = true;
+          checkAllManualLoaded();
+        }).getCheckpoints();
+
+        loadOfficerLogs(() => {
+          logsLoaded = true;
+          checkAllManualLoaded();
+        });
+      } else {
+        if (syncIcon) syncIcon.classList.remove("spin-active");
+        showToast("Harap login terlebih dahulu untuk sinkronisasi.", "warning");
+      }
+    }
+
+    // ==============================================
+    // OFFICER LOGIC & RFID TAPPING
+    // ==============================================
+    
+    /**
+     * Mengambil data dashboard untuk view petugas
+     */
+    function loadOfficerDashboard() {
+      showLoading("Memuat jadwal dan checkpoint aktif...");
+      
+      let schedulesLoaded = false;
+      let checkpointsLoaded = false;
+      let logsLoaded = false;
+
+      const checkAllLoaded = () => {
+        if (schedulesLoaded && checkpointsLoaded && logsLoaded) {
+          hideLoading();
+        }
+      };
+
+      google.script.run
+        .withSuccessHandler(schedules => {
+          cachedSchedules = schedules || [];
+          updateActiveShiftDisplay();
+          schedulesLoaded = true;
+          checkAllLoaded();
+        })
+        .withFailureHandler(err => {
+          schedulesLoaded = true;
+          checkAllLoaded();
+        })
+        .getSchedules();
+
+      google.script.run
+        .withSuccessHandler(checkpoints => {
+          cachedCheckpoints = checkpoints || [];
+          document.getElementById("checkpointCount").innerText = cachedCheckpoints.length;
+          checkpointsLoaded = true;
+          checkAllLoaded();
+        })
+        .withFailureHandler(err => {
+          checkpointsLoaded = true;
+          checkAllLoaded();
+        })
+        .getCheckpoints();
+
+      loadOfficerLogs(() => {
+        logsLoaded = true;
+        checkAllLoaded();
+      });
+    }
+
+    function loadOfficerLogs(callback) {
+      google.script.run
+        .withSuccessHandler(logs => {
+          try {
+            cachedLogs = logs || [];
+            
+            const myLogs = cachedLogs.filter(l => {
+              if (!l || !l.officerId) return false;
+              const logOfficerId = l.officerId.toString().trim().toLowerCase();
+              const currentUserId = (currentUser && currentUser.id) ? currentUser.id.toString().trim().toLowerCase() : '';
+              return logOfficerId === currentUserId;
+            });
+            
+            document.getElementById("officerTodayTaps").innerText = myLogs.length;
+
+            const tableBody = document.getElementById("officerLogTableBody");
+            if (myLogs.length === 0) {
+              tableBody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 text-xs">Belum ada log patroli hari ini</td></tr>`;
+            } else {
+              tableBody.innerHTML = myLogs.map(log => {
+                const formattedDate = formatDateString(log.timestamp);
+                const logStatus = log.status ? log.status.toString() : '';
+                const isSesuai = logStatus.includes('Sesuai');
+                return `
+                  <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+                    <td class="py-3 px-6 font-semibold">${formattedDate}</td>
+                    <td class="py-3 px-6 text-slate-800 font-bold">${log.location || '-'}</td>
+                    <td class="py-3 px-6 font-mono text-xs text-slate-400">${log.uid || '-'}</td>
+                    <td class="py-3 px-6">
+                      <span class="px-2 py-1 rounded-full text-xs font-semibold ${isSesuai ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}">
+                        ${logStatus || 'Tidak Diketahui'}
+                      </span>
+                    </td>
+                    <td class="py-3 px-6 text-slate-500">${log.notes || '-'}</td>
+                  </tr>
+                `;
+              }).join('');
+            }
+          } catch (err) {
+            console.error("Error processing officer logs:", err);
+            showToast("Ada masalah pemrosesan log: " + err.message, "warning");
+          } finally {
+            if (callback) callback();
+          }
+        })
+        .withFailureHandler(err => {
+          showToast("Gagal memuat log patroli terbaru.", "error");
+          if (callback) callback();
+        })
+        .getPatrolLogs();
+    }
+
+    function updateActiveShiftDisplay() {
+      const now = new Date();
+      const currentHourMin = now.toTimeString().substring(0, 5); // "HH:MM"
+      
+      let activeShift = cachedSchedules.find(s => {
+        return currentHourMin >= s.startTime && currentHourMin <= s.endTime;
+      });
+
+      if (!activeShift && cachedSchedules.length > 0) {
+        activeShift = cachedSchedules[0];
+      }
+
+      if (activeShift) {
+        document.getElementById("activeShiftName").innerText = activeShift.name;
+        document.getElementById("activeShiftHours").innerText = `${activeShift.startTime} s.d ${activeShift.endTime}`;
+        document.getElementById("activeShiftName").dataset.scheduleId = activeShift.id;
+      } else {
+        document.getElementById("activeShiftName").innerText = "Tidak Ada Shift Aktif";
+        document.getElementById("activeShiftHours").innerText = "Di Luar Jam Kerja Terjadwal";
+      }
+    }
+
+    /**
+     * Memproses RFID setelah berhasil terbaca sensor NFC
+     */
+    function handleRfidScanned(uid) {
+      if (!currentUser) return;
+      
+      const notes = document.getElementById("patrolNotes").value;
+      const activeShiftId = document.getElementById("activeShiftName").dataset.scheduleId || "";
+
+      showLoading("Menyimpan Log Patroli...");
+      
+      const logData = {
+        uid: uid,
+        officerId: currentUser.id,
+        scheduleId: activeShiftId,
+        notes: notes
+      };
+
+      google.script.run
+        .withSuccessHandler(response => {
+          hideLoading();
+          if (response.success) {
+            showToast(`BERHASIL! Checkpoint Ter-Scan: "${response.location}". Status: ${response.status}`, "success");
+            playBeep();
+            
+            document.getElementById("patrolNotes").value = "";
+            document.getElementById("manualUid").value = "";
+            
+            showLoading("Memperbarui log...");
+            loadOfficerLogs(() => hideLoading());
+          } else {
+            showToast("Gagal mencatat patroli.", "error");
+          }
+        })
+        .withFailureHandler(err => {
+          hideLoading();
+          showToast("Masalah Koneksi: " + err, "error");
+        })
+        .submitPatrolLog(logData);
+    }
+
+    /**
+     * Submit patroli via form manual fallback
+     */
+    function submitManualPatrol() {
+      const uid = document.getElementById("manualUid").value.trim();
+      if (!uid) {
+        showToast("UID RFID tidak boleh kosong!", "error");
+        return;
+      }
+      handleRfidScanned(uid);
+    }
+
+    /**
+     * Bunyi bip untuk menandakan scan sukses
+     */
+    function playBeep() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
+        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime); 
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.15); 
+      } catch (e) {
+        console.log("Audio feedback tidak disupport browser.");
+      }
+    }
+
+    /**
+     * Handler pemicu inisialisasi awal spreadsheet
+     */
+    function handleSetupDatabase() {
+      showLoading("Mengonfigurasi Google Sheets & Tabel Sistem...");
+      google.script.run
+        .withSuccessHandler(res => {
+          hideLoading();
+          if (res.success) {
+            showToast("Database Spreadsheet berhasil dibuat dan terhubung!", "success");
+            document.getElementById("setupBanner").classList.add("hidden");
+          }
+        })
+        .withFailureHandler(err => {
+          hideLoading();
+          showToast("Setup gagal: " + err, "error");
+        })
+        .setupDatabase();
+    }
+
+    /**
+     * Memformat string tanggal dari Spreadsheet ISO menjadi format Indonesia yang nyaman dibaca
+     */
+    function formatDateString(dateStr) {
+      if (!dateStr) return "-";
+      try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr; 
+        
+        const pad = (n) => n < 10 ? '0' + n : n;
+        
+        const dStr = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+        const tStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        return `<span class="text-xs text-slate-500 block">${dStr}</span><span class="text-sm font-bold text-slate-800">${tStr}</span>`;
+      } catch (e) {
+        return dateStr;
+      }
+    }
+  </script>
+</body>
+</html>
