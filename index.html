@@ -315,15 +315,16 @@
           </span>
           <span>Tapping Patroli Admin</span>
         </button>
-        <button onclick="switchAdminTab('officers')" id="tabBtn-officers" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center space-x-2 shrink-0 transition-all">
+        <!-- HIDING "Kelola Petugas", "Titik RFID", and "Jadwal Periodik" as requested -->
+        <button onclick="switchAdminTab('officers')" id="tabBtn-officers" class="admin-tab-btn hidden border-b-2 border-transparent px-4 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center space-x-2 shrink-0 transition-all">
           <i data-lucide="users" class="w-4 h-4"></i>
           <span>Kelola Petugas</span>
         </button>
-        <button onclick="switchAdminTab('checkpoints')" id="tabBtn-checkpoints" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center space-x-2 shrink-0 transition-all">
+        <button onclick="switchAdminTab('checkpoints')" id="tabBtn-checkpoints" class="admin-tab-btn hidden border-b-2 border-transparent px-4 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center space-x-2 shrink-0 transition-all">
           <i data-lucide="map-pin" class="w-4 h-4"></i>
           <span>Titik RFID (Checkpoint)</span>
         </button>
-        <button onclick="switchAdminTab('schedules')" id="tabBtn-schedules" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center space-x-2 shrink-0 transition-all">
+        <button onclick="switchAdminTab('schedules')" id="tabBtn-schedules" class="admin-tab-btn hidden border-b-2 border-transparent px-4 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center space-x-2 shrink-0 transition-all">
           <i data-lucide="calendar" class="w-4 h-4"></i>
           <span>Jadwal Periodik</span>
         </button>
@@ -425,8 +426,8 @@
                 <textarea id="adminPatrolNotes" rows="2" placeholder="Tulis catatan jika ada temuan (misal: 'Semua terpantau kondusif oleh Supervisor')" class="w-full text-sm bg-white border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"></textarea>
               </div>
 
-              <!-- MANUAL INPUT UNTUK ADMIN -->
-              <div class="border-t border-slate-100 pt-4 mt-2">
+              <!-- HIDING MANUAL INPUT UNTUK ADMIN as requested -->
+              <div class="hidden border-t border-slate-100 pt-4 mt-2">
                 <button onclick="toggleManualInput('adminManualContainer')" class="text-xs text-blue-600 hover:text-blue-800 font-semibold underline flex items-center justify-center mx-auto space-x-1">
                   <i data-lucide="keyboard" class="w-4 h-4"></i>
                   <span>Gunakan Input Manual Admin (Alternatif/PC)</span>
@@ -445,7 +446,7 @@
         </div>
       </div>
 
-      <!-- SUBTAB 2: KELOLA PETUGAS -->
+      <!-- SUBTAB 2: KELOLA PETUGAS (Hidden content wrapper) -->
       <div id="adminTab-officers" class="admin-tab-content hidden grid grid-cols-1 md:grid-cols-3 gap-6">
         <!-- Form Add/Edit Officer -->
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-fit space-y-4">
@@ -499,7 +500,7 @@
         </div>
       </div>
 
-      <!-- SUBTAB 3: TITIK CHECKPOINT (RFID) -->
+      <!-- SUBTAB 3: TITIK CHECKPOINT (RFID) (Hidden content wrapper) -->
       <div id="adminTab-checkpoints" class="admin-tab-content hidden grid grid-cols-1 md:grid-cols-3 gap-6">
         <!-- Form Add/Edit Checkpoint -->
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-fit space-y-4">
@@ -552,7 +553,7 @@
         </div>
       </div>
 
-      <!-- SUBTAB 4: JADWAL PERIODIK -->
+      <!-- SUBTAB 4: JADWAL PERIODIK (Hidden content wrapper) -->
       <div id="adminTab-schedules" class="admin-tab-content hidden grid grid-cols-1 md:grid-cols-3 gap-6">
         <!-- Form Add/Edit Schedule -->
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-fit space-y-4">
