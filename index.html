@@ -52,9 +52,9 @@
         </div>
       </div>
       
-      <!-- USER INFO & SYNC BUTTON -->
+      <!-- USER INFO & GET DATA / SYNC BUTTON -->
       <div id="userInfo" class="hidden flex items-center space-x-3">
-        <!-- TOMBOL SINKRONKAN DATA -->
+        <!-- TOMBOL GET DATA / SINKRONKAN -->
         <button onclick="manualSync()" id="syncHeaderBtn" class="flex items-center space-x-1.5 bg-blue-800 hover:bg-blue-700 active:bg-blue-950 text-white text-xs px-3 py-2 rounded-xl transition-all border border-blue-700 font-semibold shadow-sm" title="Ambil data terbaru dari Spreadsheet">
           <i data-lucide="refresh-cw" class="w-4 h-4" id="syncHeaderIcon"></i>
           <span class="hidden md:inline">Sinkronkan Data</span>
@@ -83,7 +83,7 @@
       <p id="loadingMessage" class="text-lg font-medium text-slate-100">Sedang memuat data...</p>
     </div>
 
-    <!-- API CONFIGURATION MODAL (FOR STANDALONE WEB PAGES) -->
+    <!-- API CONFIGURATION MODAL (FOR STANDALONE GITHUB PAGES) -->
     <div id="apiConfigModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
       <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100">
         <div class="p-6 bg-blue-900 text-white flex items-center space-x-3">
@@ -144,7 +144,7 @@
           <i data-lucide="shield" class="w-12 h-12 text-yellow-400"></i>
         </div>
         <h2 class="text-2xl font-bold">Masuk Aplikasi</h2>
-        <p class="text-slate-300 text-sm mt-1">Silakan masukkan ID dan PIN Keamanan Anda</p>
+        <p class="text-slate-300 text-sm mt-1">Silakan masukkan ID Petugas dan PIN Keamanan Anda</p>
       </div>
       
       <form onsubmit="handleLogin(event)" class="p-8 space-y-6">
@@ -175,7 +175,7 @@
       </form>
     </section>
 
-    <!-- ================== 2. OFFICER / PATROL SCREEN ================== -->
+    <!-- ================== 2. OFFICER SCREEN (PATROL TAPPING) ================== -->
     <section id="officerSection" class="hidden space-y-6">
       
       <!-- Welcome & Info Card -->
@@ -220,7 +220,7 @@
           <div>
             <h3 class="text-lg font-bold flex items-center space-x-2">
               <span class="w-2.5 h-2.5 bg-blue-600 rounded-full animate-ping"></span>
-              <span>Scanning RFID/NFC Hack Aktif</span>
+              <span>Scanning RFID/NFC Aktif</span>
             </h3>
             <p class="text-xs text-slate-500">Dekatkan bagian belakang HP Android Anda pada kartu RFID / Tag NFC di lokasi</p>
           </div>
@@ -233,7 +233,7 @@
 
         <div class="p-8 flex flex-col items-center justify-center text-center">
           <!-- NFC Pulse Target -->
-          <div id="nfcScanArea" class="w-48 h-48 bg-blue-50 text-blue-600 rounded-full flex flex-col items-center justify-center cursor-pointer nfc-pulse hover:bg-blue-100 transition duration-300 relative mb-6" onclick="triggerWebNFCScan()">
+          <div id="nfcScanArea" class="w-48 h-48 bg-blue-50 text-blue-600 rounded-full flex flex-col items-center justify-center cursor-pointer nfc-pulse hover:bg-blue-100 transition duration-300 relative mb-6" onclick="triggerWebNFCScan('PATROL')">
             <i data-lucide="nfc" class="w-16 h-16 mb-2"></i>
             <span class="text-xs font-bold uppercase tracking-wider">Tap Kartu RFID</span>
             <!-- Decorative Border -->
@@ -248,16 +248,16 @@
 
             <!-- MANUAL INPUT -->
             <div class="border-t border-slate-100 pt-4 mt-2">
-              <button onclick="toggleManualInput()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold underline flex items-center justify-center mx-auto space-x-1">
+              <button onclick="toggleManualInput('officerManualContainer')" class="text-xs text-blue-600 hover:text-blue-800 font-semibold underline flex items-center justify-center mx-auto space-x-1">
                 <i data-lucide="keyboard" class="w-4 h-4"></i>
                 <span>Gunakan Input Manual (Uji Coba / Alternatif)</span>
               </button>
               
-              <div id="manualInputContainer" class="hidden mt-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-left">
+              <div id="officerManualContainer" class="hidden mt-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-left">
                 <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Ketik / Paste UID RFID Tag</label>
                 <div class="flex space-x-2">
                   <input type="text" id="manualUid" placeholder="Contoh: 04:a1:b2:c3:d4:e5:f6" class="flex-grow text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
-                  <button onclick="submitManualPatrol()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-sm transition-all shadow hover:shadow-blue-500/10">Kirim</button>
+                  <button onclick="submitManualPatrol('manualUid', 'patrolNotes')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg text-sm transition-all shadow hover:shadow-blue-500/10">Kirim</button>
                 </div>
               </div>
             </div>
@@ -297,12 +297,324 @@
         </div>
       </div>
     </section>
+
+    <!-- ================== 3. ADMIN DASHBOARD ================== -->
+    <section id="adminSection" class="hidden space-y-6">
+      
+      <!-- Admin Navigation Tabs -->
+      <div class="flex space-x-2 border-b border-slate-200 overflow-x-auto scrollbar-none pb-px">
+        <button onclick="switchAdminTab('logs')" id="tabBtn-logs" class="admin-tab-btn border-b-2 border-blue-600 px-4 py-2.5 text-blue-600 font-bold text-sm flex items-center space-x-2 shrink-0 transition-all">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+          <span>Log Patroli</span>
+        </button>
+        <button onclick="switchAdminTab('scan')" id="tabBtn-scan" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center space-x-2 shrink-0 transition-all">
+          <i data-lucide="nfc" class="w-4 h-4"></i>
+          <span class="relative flex h-2 w-2 mr-1">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span>Tapping Patroli Admin</span>
+        </button>
+        <button onclick="switchAdminTab('officers')" id="tabBtn-officers" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center space-x-2 shrink-0 transition-all">
+          <i data-lucide="users" class="w-4 h-4"></i>
+          <span>Kelola Petugas</span>
+        </button>
+        <button onclick="switchAdminTab('checkpoints')" id="tabBtn-checkpoints" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center space-x-2 shrink-0 transition-all">
+          <i data-lucide="map-pin" class="w-4 h-4"></i>
+          <span>Titik RFID (Checkpoint)</span>
+        </button>
+        <button onclick="switchAdminTab('schedules')" id="tabBtn-schedules" class="admin-tab-btn border-b-2 border-transparent px-4 py-2.5 text-slate-500 hover:text-slate-800 font-semibold text-sm flex items-center space-x-2 shrink-0 transition-all">
+          <i data-lucide="calendar" class="w-4 h-4"></i>
+          <span>Jadwal Periodik</span>
+        </button>
+      </div>
+
+      <!-- SUBTAB 1: LOG PATROLI -->
+      <div id="adminTab-logs" class="admin-tab-content space-y-4">
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div>
+              <h3 class="text-lg font-bold">Laporan Histori Patroli</h3>
+              <p class="text-xs text-slate-500">Menampilkan hingga 500 tapping RFID terbaru secara real-time</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button onclick="manualSync()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center space-x-1.5 transition">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                <span>Refresh Log</span>
+              </button>
+              <button onclick="exportToSpreadsheet()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center space-x-1.5 transition">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                <span>Buka Google Sheet</span>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Filter Controls -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs mb-4">
+            <div>
+              <label class="block font-bold text-slate-500 mb-1">Filter Petugas</label>
+              <select id="filterOfficer" onchange="applyLogFilters()" class="w-full bg-white border border-slate-200 rounded-lg p-2"></select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-500 mb-1">Filter Checkpoint</label>
+              <select id="filterCheckpoint" onchange="applyLogFilters()" class="w-full bg-white border border-slate-200 rounded-lg p-2"></select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-500 mb-1">Cari Keyword</label>
+              <input type="text" id="searchLog" oninput="applyLogFilters()" placeholder="Cari tanggal, status..." class="w-full bg-white border border-slate-200 rounded-lg p-2">
+            </div>
+          </div>
+
+          <!-- Log Table -->
+          <div class="overflow-x-auto border border-slate-100 rounded-xl">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <th class="py-3 px-4">Waktu Tap</th>
+                  <th class="py-3 px-4">Petugas</th>
+                  <th class="py-3 px-4">Lokasi Checkpoint</th>
+                  <th class="py-3 px-4">RFID UID</th>
+                  <th class="py-3 px-4">Status</th>
+                  <th class="py-3 px-4">Catatan</th>
+                </tr>
+              </thead>
+              <tbody id="adminLogsTableBody" class="divide-y divide-slate-100 text-sm">
+                <!-- Log rows inject here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBTAB BARU: TAPPING PATROLI ADMIN -->
+      <div id="adminTab-scan" class="admin-tab-content hidden space-y-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h3 class="text-lg font-bold flex items-center space-x-2 text-blue-900">
+                <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping"></span>
+                <span>Fitur Patroli Tapping (Role: Admin)</span>
+              </h3>
+              <p class="text-xs text-slate-500">Anda dapat melakukan pengetukan RFID patroli langsung tanpa berpindah akun.</p>
+            </div>
+            <!-- NFC Support Alert Badge -->
+            <div id="adminNfcSupportBadge" class="self-start text-xs px-3 py-1.5 rounded-full flex items-center space-x-1 bg-green-100 text-green-700">
+              <i data-lucide="info" class="w-3.5 h-3.5"></i>
+              <span>Gunakan Browser HP Android yang Mendukung NFC</span>
+            </div>
+          </div>
+
+          <div class="p-8 flex flex-col items-center justify-center text-center">
+            <!-- NFC Pulse Target -->
+            <div id="adminNfcScanArea" class="w-48 h-48 bg-emerald-50 text-emerald-600 rounded-full flex flex-col items-center justify-center cursor-pointer nfc-pulse hover:bg-emerald-100 transition duration-300 relative mb-6" onclick="triggerWebNFCScan('PATROL')">
+              <i data-lucide="nfc" class="w-16 h-16 mb-2 animate-bounce"></i>
+              <span class="text-xs font-bold uppercase tracking-wider">TAP RFID SEKARANG</span>
+              <!-- Decorative Border -->
+              <div class="absolute inset-2 border border-emerald-300 border-dashed rounded-full pointer-events-none"></div>
+            </div>
+
+            <div class="max-w-md w-full">
+              <!-- Detail shift pembantu untuk admin jika berpatroli -->
+              <div class="bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 mb-3 flex justify-between text-xs font-semibold text-slate-600">
+                <span>Shift Terdeteksi: <strong id="adminShiftName" class="text-blue-900">-</strong></span>
+                <span id="adminShiftHours">-</span>
+              </div>
+
+              <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide text-left mb-1.5">Catatan Tambahan Patroli Admin</label>
+                <textarea id="adminPatrolNotes" rows="2" placeholder="Tulis catatan jika ada temuan (misal: 'Semua terpantau kondusif oleh Supervisor')" class="w-full text-sm bg-white border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"></textarea>
+              </div>
+
+              <!-- MANUAL INPUT UNTUK ADMIN -->
+              <div class="border-t border-slate-100 pt-4 mt-2">
+                <button onclick="toggleManualInput('adminManualContainer')" class="text-xs text-blue-600 hover:text-blue-800 font-semibold underline flex items-center justify-center mx-auto space-x-1">
+                  <i data-lucide="keyboard" class="w-4 h-4"></i>
+                  <span>Gunakan Input Manual Admin (Alternatif/PC)</span>
+                </button>
+                
+                <div id="adminManualContainer" class="hidden mt-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-left">
+                  <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Ketik UID RFID</label>
+                  <div class="flex space-x-2">
+                    <input type="text" id="adminManualUid" placeholder="Masukkan ID kartu..." class="flex-grow text-sm bg-white border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    <button onclick="submitManualPatrol('adminManualUid', 'adminPatrolNotes')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-sm transition-all shadow">Kirim</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBTAB 2: KELOLA PETUGAS -->
+      <div id="adminTab-officers" class="admin-tab-content hidden grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Form Add/Edit Officer -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-fit space-y-4">
+          <h3 class="text-md font-bold text-slate-800" id="officerFormTitle">Tambah Petugas Baru</h3>
+          <form onsubmit="handleSaveOfficer(event)" class="space-y-4 text-sm">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">ID Petugas (Unique)</label>
+              <input type="text" id="officerId" required placeholder="Contoh: P003, P004" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Nama Lengkap</label>
+              <input type="text" id="officerName" required placeholder="Contoh: Ahmad Dhani" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">PIN Login (4 Angka)</label>
+              <input type="password" id="officerPin" required maxlength="4" placeholder="Contoh: 1234" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Level Akses (Role)</label>
+              <select id="officerRole" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+                <option value="Petugas">Petugas Keamanan</option>
+                <option value="Admin">Administrator</option>
+              </select>
+            </div>
+            <div class="flex space-x-2 pt-2">
+              <button type="submit" class="flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition">Simpan</button>
+              <button type="button" onclick="resetOfficerForm()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 px-4 rounded-xl transition">Batal</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Table list of officers -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2 overflow-hidden flex flex-col">
+          <h3 class="text-md font-bold mb-4">Daftar Petugas Terdaftar</h3>
+          <div class="overflow-x-auto border border-slate-100 rounded-xl">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <th class="py-3 px-4">ID</th>
+                  <th class="py-3 px-4">Nama Lengkap</th>
+                  <th class="py-3 px-4">PIN</th>
+                  <th class="py-3 px-4">Role</th>
+                  <th class="py-3 px-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="officersTableBody" class="divide-y divide-slate-100">
+                <!-- Loaded items -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBTAB 3: TITIK CHECKPOINT (RFID) -->
+      <div id="adminTab-checkpoints" class="admin-tab-content hidden grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Form Add/Edit Checkpoint -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-fit space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="text-md font-bold text-slate-800" id="checkpointFormTitle">Daftarkan Kartu RFID</h3>
+            <button onclick="scanNFCForCheckpointInput()" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 py-1 rounded-lg text-xs font-bold flex items-center space-x-1 transition">
+              <i data-lucide="nfc" class="w-3.5 h-3.5"></i>
+              <span>Tap Scan</span>
+            </button>
+          </div>
+          <p class="text-xs text-slate-500">Ketikkan ID kartu UID secara manual, atau nyalakan fitur WebNFC di HP, lalu tap untuk memindai otomatis ke input form ini.</p>
+          <form onsubmit="handleSaveCheckpoint(event)" class="space-y-4 text-sm">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">UID RFID / Tag NFC</label>
+              <input type="text" id="checkpointUid" required placeholder="Contoh: 04:a1:b2:c3..." class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Nama Lokasi / Checkpoint</label>
+              <input type="text" id="checkpointName" required placeholder="Contoh: Pos Gerbang Timur" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Deskripsi Tambahan</label>
+              <input type="text" id="checkpointDescription" placeholder="Contoh: Belakang gedung utama dekat genset" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+            </div>
+            <div class="flex space-x-2 pt-2">
+              <button type="submit" class="flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition">Simpan</button>
+              <button type="button" onclick="resetCheckpointForm()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 px-4 rounded-xl transition">Batal</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Table list of checkpoints -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2 overflow-hidden flex flex-col">
+          <h3 class="text-md font-bold mb-4">Daftar Titik Lokasi RFID Terdaftar</h3>
+          <div class="overflow-x-auto border border-slate-100 rounded-xl">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <th class="py-3 px-4">UID Kartu RFID</th>
+                  <th class="py-3 px-4">Nama Lokasi</th>
+                  <th class="py-3 px-4">Deskripsi</th>
+                  <th class="py-3 px-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="checkpointsTableBody" class="divide-y divide-slate-100">
+                <!-- Loaded items -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBTAB 4: JADWAL PERIODIK -->
+      <div id="adminTab-schedules" class="admin-tab-content hidden grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Form Add/Edit Schedule -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-fit space-y-4">
+          <h3 class="text-md font-bold text-slate-800" id="scheduleFormTitle">Atur Jadwal Patroli Periodik</h3>
+          <form onsubmit="handleSaveSchedule(event)" class="space-y-4 text-sm">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">ID Jadwal / Shift (Unique)</label>
+              <input type="text" id="scheduleId" required placeholder="Contoh: S1, SHIFT1" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Nama Shift</label>
+              <input type="text" id="scheduleName" required placeholder="Contoh: Shift Siang, Shift Malam" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Jam Mulai</label>
+                <input type="text" id="scheduleStartTime" required placeholder="Contoh: 08:00" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Jam Selesai</label>
+                <input type="text" id="scheduleEndTime" required placeholder="Contoh: 17:00" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+              </div>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Keterangan / Aturan Periodik</label>
+              <input type="text" id="scheduleDescription" placeholder="Contoh: Harus tap 5 kali setiap jam kerja" class="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white outline-none">
+            </div>
+            <div class="flex space-x-2 pt-2">
+              <button type="submit" class="flex-grow bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition">Simpan Jadwal</button>
+              <button type="button" onclick="resetScheduleForm()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 px-4 rounded-xl transition">Batal</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Table list of schedules -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2 overflow-hidden flex flex-col">
+          <h3 class="text-md font-bold mb-4">Pengaturan Jadwal Keamanan</h3>
+          <div class="overflow-x-auto border border-slate-100 rounded-xl">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <th class="py-3 px-4">ID</th>
+                  <th class="py-3 px-4">Nama Shift</th>
+                  <th class="py-3 px-4">Durasi Jam</th>
+                  <th class="py-3 px-4">Deskripsi / Kebijakan</th>
+                  <th class="py-3 px-4 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="schedulesTableBody" class="divide-y divide-slate-100">
+                <!-- Loaded items -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- APP FOOTER -->
   <footer class="bg-slate-900 text-slate-400 py-6 border-t border-slate-800 mt-auto">
     <div class="max-w-6xl mx-auto px-4 text-center space-y-2">
-      <p class="text-sm">Sistem Aplikasi Patroli Keamanan - Terintegrasi Google Sheets</p>
+      <p class="text-sm">Sistem Aplikasi Patroli Keamanan - Terintegrasi Google Apps Script & Google Sheets</p>
       <div class="flex items-center justify-center space-x-4 text-xs text-slate-500">
         <span>WebNFC API</span>
         <span>•</span>
@@ -322,16 +634,20 @@
   <script>
     // State Aplikasi
     let currentUser = null;
+    let cachedOfficers = [];
     let cachedCheckpoints = [];
     let cachedSchedules = [];
     let cachedLogs = [];
+    let nfcReaderInstance = null;
     let isWebNFCAvailable = false;
+    let activeNFCScanMode = "PATROL"; // PATROL atau INPUT_CHECKPOINT
 
-    // DETEKSI APAKAH DI-RUN DI LUAR IFRAME GOOGLE (STANDALONE WEB / GITHUB PAGES)
+    // DETEKSI APAKAH DI-RUN DI LUAR IFRAME GOOGLE (STANDALONE WEB)
     const IS_STANDALONE = (typeof google === 'undefined' || !google.script || !google.script.run);
 
     // ==============================================
     // DYNAMIC API POLYFILL / ROUTER (CORS Bypass)
+    // * Memisahkan rute GET untuk membaca, dan POST untuk menulis
     // ==============================================
     if (IS_STANDALONE) {
       document.getElementById("apiConfigTriggerContainer").classList.remove("hidden");
@@ -339,82 +655,82 @@
       window.google = {
         script: {
           run: {
-            // Membuat Isolated Runner Context (Mencegah Callback Saling Menimpa)
-            withSuccessHandler: function(successFn) {
-              return this._createRunner(successFn, null);
+            successHandler: null,
+            failureHandler: null,
+            withSuccessHandler: function(handler) {
+              this.successHandler = handler;
+              return this;
             },
-            withFailureHandler: function(failureFn) {
-              return this._createRunner(null, failureFn);
-            },
-            _createRunner: function(successFn, failureFn) {
-              return {
-                successHandler: successFn,
-                failureHandler: failureFn,
-                withSuccessHandler: function(fn) {
-                  this.successHandler = fn;
-                  return this;
-                },
-                withFailureHandler: function(fn) {
-                  this.failureHandler = fn;
-                  return this;
-                },
-                _execute: async function(actionName, args) {
-                  let gasWebAppUrl = localStorage.getItem("gas_api_url") || "";
-                  
-                  if (!gasWebAppUrl) {
-                    document.getElementById("loadingOverlay").classList.add("hidden");
-                    toggleApiModal(true);
-                    if (this.failureHandler) this.failureHandler("URL Web App belum diatur.");
-                    return;
-                  }
-                  
-                  try {
-                    let response;
-                    const separator = gasWebAppUrl.includes("?") ? "&" : "?";
-                    let fetchUrl = `${gasWebAppUrl}${separator}action=${actionName}&t=${Date.now()}`;
-
-                    // Routing data dinonaktifkan dari metode POST -> beralih ke GET untuk memotong CORS Preflight blocker
-                    if (actionName === "loginUser") {
-                      fetchUrl += `&userId=${encodeURIComponent(args[0] || "")}&pin=${encodeURIComponent(args[1] || "")}`;
-                    } else if (actionName === "submitPatrolLog") {
-                      const logData = args[0] || {};
-                      fetchUrl += `&uid=${encodeURIComponent(logData.uid || "")}&officerId=${encodeURIComponent(logData.officerId || "")}&scheduleId=${encodeURIComponent(logData.scheduleId || "")}&notes=${encodeURIComponent(logData.notes || "")}`;
-                    }
-
-                    response = await fetch(fetchUrl, { method: "GET" });
-                    
-                    const result = await response.json();
-                    if (result.success) {
-                      if (this.successHandler) this.successHandler(result.data);
-                    } else {
-                      if (this.failureHandler) this.failureHandler(result.error || "Gagal memproses permintaan.");
-                    }
-                  } catch (err) {
-                    console.error("Fetch API Error:", err);
-                    if (this.failureHandler) this.failureHandler("Koneksi API Gagal. Pastikan URL skrip benar dan izin 'Anyone' aktif.");
-                  }
-                },
-                
-                // Method Wrappers yang terisolasi
-                loginUser: function(u, p) { this._execute("loginUser", [u, p]); },
-                getSchedules: function() { this._execute("getSchedules", []); },
-                getCheckpoints: function() { this._execute("getCheckpoints", []); },
-                getPatrolLogs: function() { this._execute("getPatrolLogs", []); },
-                submitPatrolLog: function(l) { this._execute("submitPatrolLog", [l]); },
-                setupDatabase: function() { this._execute("setupDatabase", []); }
-              };
+            withFailureHandler: function(handler) {
+              this.failureHandler = handler;
+              return this;
             },
             
-            // Default Wrappers jika dipanggil tanpa chain `.withSuccessHandler()`
-            loginUser: function(u, p) { this._createRunner(null, null).loginUser(u, p); },
-            getSchedules: function() { this._createRunner(null, null).getSchedules(); },
-            getCheckpoints: function() { this._createRunner(null, null).getCheckpoints(); },
-            getPatrolLogs: function() { this._createRunner(null, null).getPatrolLogs(); },
-            submitPatrolLog: function(l) { this._createRunner(null, null).submitPatrolLog(l); },
-            setupDatabase: function() { this._createRunner(null, null).setupDatabase(); }
+            // Integrasi Lintas-Domain (GitHub Pages -> Google Sheets)
+            _execute: async function(actionName, args) {
+              let gasWebAppUrl = localStorage.getItem("gas_api_url") || "";
+              
+              if (!gasWebAppUrl) {
+                document.getElementById("loadingOverlay").classList.add("hidden");
+                toggleApiModal(true);
+                if (this.failureHandler) this.failureHandler("URL Web App belum diatur.");
+                return;
+              }
+              
+              const readActions = ["getSchedules", "getCheckpoints", "getPatrolLogs", "getOfficers"];
+              const isReadAction = readActions.includes(actionName);
+              
+              try {
+                let response;
+                
+                if (isReadAction) {
+                  // Bypass CORS Jitu: Membaca data menggunakan metode GET murni
+                  const separator = gasWebAppUrl.includes("?") ? "&" : "?";
+                  const fetchUrl = `${gasWebAppUrl}${separator}action=${actionName}&t=${Date.now()}`;
+                  response = await fetch(fetchUrl, { method: "GET" });
+                } else {
+                  // Menulis data menggunakan POST payload
+                  response = await fetch(gasWebAppUrl, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "text/plain;charset=utf-8"
+                    },
+                    body: JSON.stringify({
+                      action: actionName,
+                      args: args
+                    })
+                  });
+                }
+                
+                const result = await response.json();
+                if (result.success) {
+                  if (this.successHandler) this.successHandler(result.data);
+                } else {
+                  if (this.failureHandler) this.failureHandler(result.error);
+                }
+              } catch (err) {
+                console.error("Fetch API Error:", err);
+                if (this.failureHandler) this.failureHandler("Koneksi API Gagal. Pastikan URL skrip benar dan izin 'Anyone' aktif.");
+              }
+            },
+            
+            // Mocking Wrapper GAS
+            loginUser: function(u, p) { this._execute("loginUser", [u, p]); },
+            getSchedules: function() { this._execute("getSchedules", []); },
+            getCheckpoints: function() { this._execute("getCheckpoints", []); },
+            getPatrolLogs: function() { this._execute("getPatrolLogs", []); },
+            submitPatrolLog: function(l) { this._execute("submitPatrolLog", [l]); },
+            getOfficers: function() { this._execute("getOfficers", []); },
+            saveOfficer: function(o) { this._execute("saveOfficer", [o]); },
+            deleteOfficer: function(i) { this._execute("deleteOfficer", [i]); },
+            saveCheckpoint: function(c) { this._execute("saveCheckpoint", [c]); },
+            deleteCheckpoint: function(u) { this._execute("deleteCheckpoint", [u]); },
+            saveSchedule: function(s) { this._execute("saveSchedule", [s]); },
+            deleteSchedule: function(i) { this._execute("deleteSchedule", [i]); },
+            setupDatabase: function() { this._execute("setupDatabase", []); }
           }
-        };
-      }
+        }
+      };
     }
 
     /**
@@ -481,26 +797,34 @@
      */
     function checkWebNFCSupport() {
       const badge = document.getElementById("nfcSupportBadge");
+      const adminBadge = document.getElementById("adminNfcSupportBadge");
       const text = document.getElementById("nfcSupportText");
       
       if ('NDEFReader' in window) {
         isWebNFCAvailable = true;
-        badge.className = "self-start text-xs px-3 py-1.5 rounded-full flex items-center space-x-1 bg-green-100 text-green-700";
-        text.innerText = "NFC Siap";
+        if (badge) badge.className = "self-start text-xs px-3 py-1.5 rounded-full flex items-center space-x-1 bg-green-100 text-green-700";
+        if (adminBadge) adminBadge.className = "self-start text-xs px-3 py-1.5 rounded-full flex items-center space-x-1 bg-green-100 text-green-700";
+        if (text) text.innerText = "NFC Siap";
       } else {
         isWebNFCAvailable = false;
-        badge.className = "self-start text-xs px-3 py-1.5 rounded-full flex items-center space-x-1 bg-yellow-100 text-yellow-700";
-        text.innerText = "NFC Manual / Non-Android";
+        if (badge) badge.className = "self-start text-xs px-3 py-1.5 rounded-full flex items-center space-x-1 bg-yellow-100 text-yellow-700";
+        if (adminBadge) adminBadge.className = "self-start text-xs px-3 py-1.5 rounded-full flex items-center space-x-1 bg-yellow-100 text-yellow-700";
+        if (text) text.innerText = "NFC Manual / Non-Android";
       }
     }
 
     /**
      * Trigger manual untuk scan NFC di browser (berdasarkan User Gesture)
      */
-    async function triggerWebNFCScan() {
+    async function triggerWebNFCScan(mode = "PATROL") {
+      activeNFCScanMode = mode;
       if (!isWebNFCAvailable) {
         showToast("WebNFC tidak didukung pada browser Anda. Gunakan form input manual di bawah.", "warning");
-        toggleManualInput(true);
+        if (currentUser && currentUser.role === "Admin") {
+          toggleManualInput("adminManualContainer", true);
+        } else {
+          toggleManualInput("officerManualContainer", true);
+        }
         return;
       }
       
@@ -511,27 +835,47 @@
         
         ndef.addEventListener("reading", ({ message, serialNumber }) => {
           const formattedUID = serialNumber.toLowerCase();
-          handleRfidScanned(formattedUID);
+          if (activeNFCScanMode === "PATROL") {
+            handleRfidScanned(formattedUID);
+          } else if (activeNFCScanMode === "INPUT_CHECKPOINT") {
+            document.getElementById("checkpointUid").value = formattedUID;
+            showToast("RFID UID berhasil dipindai ke form input: " + formattedUID, "success");
+            activeNFCScanMode = "PATROL"; 
+          }
         });
 
         hideLoading();
-        showToast("NFC Scanner Hack Aktif. Tempelkan kartu RFID sekarang.", "info");
+        showToast("NFC Scanner Aktif. Tempelkan kartu RFID sekarang.", "info");
       } catch (err) {
         hideLoading();
         if (IS_STANDALONE) {
           showToast("Gagal mengaktifkan sensor. Pastikan fitur NFC HP Anda sudah aktif.", "error");
         } else {
           showToast("Akses NFC diblokir Sandbox Google. Buka aplikasi sebagai File Mandiri atau GitHub Pages agar NFC Aktif!", "warning");
-          toggleManualInput(true);
+          if (currentUser && currentUser.role === "Admin") {
+            toggleManualInput("adminManualContainer", true);
+          } else {
+            toggleManualInput("officerManualContainer", true);
+          }
         }
       }
     }
 
     /**
-     * Toggle manual input box
+     * Mengatur scan RFID untuk dimasukkan ke form admin checkpoint
      */
-    function toggleManualInput(forceShow = false) {
-      const el = document.getElementById("manualInputContainer");
+    function scanNFCForCheckpointInput() {
+      activeNFCScanMode = "INPUT_CHECKPOINT";
+      showToast("Dekatkan Kartu RFID ke HP untuk merekam UID-nya ke form pendaftaran.", "info");
+      triggerWebNFCScan("INPUT_CHECKPOINT");
+    }
+
+    /**
+     * Toggle manual input box secara fleksibel berdasarkan target container ID
+     */
+    function toggleManualInput(containerId, forceShow = false) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
       if (forceShow || el.classList.contains("hidden")) {
         el.classList.remove("hidden");
         setTimeout(() => {
@@ -548,6 +892,7 @@
     function showSection(sectionId) {
       document.getElementById("loginSection").classList.add("hidden");
       document.getElementById("officerSection").classList.add("hidden");
+      document.getElementById("adminSection").classList.add("hidden");
       
       document.getElementById(sectionId).classList.remove("hidden");
       
@@ -635,8 +980,14 @@
             };
             
             showToast(`Selamat datang, ${result.name}!`, "success");
-            loadOfficerDashboard();
-            showSection("officerSection");
+            
+            if (result.role === "Admin") {
+              loadAdminData();
+              showSection("adminSection");
+            } else {
+              loadOfficerDashboard();
+              showSection("officerSection");
+            }
           } else {
             showToast(result.message || "ID atau PIN salah!", "error");
           }
@@ -665,7 +1016,35 @@
       
       showToast("Memulai sinkronisasi data dari Google Sheets...", "info");
       
-      if (currentUser) {
+      if (currentUser && currentUser.role === "Admin") {
+        // Mode Admin: Ambil semua log, checkpoint, petugas, jadwal
+        google.script.run.withSuccessHandler(officers => {
+          cachedOfficers = officers || [];
+          renderAdminOfficers();
+          populateFilters();
+        }).getOfficers();
+
+        google.script.run.withSuccessHandler(checkpoints => {
+          cachedCheckpoints = checkpoints || [];
+          renderAdminCheckpoints();
+          populateFilters();
+        }).getCheckpoints();
+
+        google.script.run.withSuccessHandler(schedules => {
+          cachedSchedules = schedules || [];
+          renderAdminSchedules();
+          updateAdminShiftDisplay();
+        }).getSchedules();
+
+        google.script.run.withSuccessHandler(logs => {
+          cachedLogs = logs || [];
+          applyLogFilters();
+          if (syncIcon) syncIcon.classList.remove("spin-active");
+          showToast("Sinkronisasi data Admin sukses!", "success");
+        }).getPatrolLogs();
+        
+      } else if (currentUser) {
+        // Mode Petugas: Ambil jadwal, checkpoint, dan log tap hari ini
         let schedulesLoaded = false;
         let checkpointsLoaded = false;
         let logsLoaded = false;
@@ -673,7 +1052,7 @@
         const checkAllManualLoaded = () => {
           if (schedulesLoaded && checkpointsLoaded && logsLoaded) {
             if (syncIcon) syncIcon.classList.remove("spin-active");
-            showToast("Sinkronisasi data sukses!", "success");
+            showToast("Sinkronisasi data Petugas sukses!", "success");
           }
         };
 
@@ -828,13 +1207,53 @@
     }
 
     /**
+     * Memperbarui detail shift visual di tab Patroli Admin
+     */
+    function updateAdminShiftDisplay() {
+      const now = new Date();
+      const currentHourMin = now.toTimeString().substring(0, 5);
+      
+      let activeShift = cachedSchedules.find(s => {
+        return currentHourMin >= s.startTime && currentHourMin <= s.endTime;
+      });
+
+      if (!activeShift && cachedSchedules.length > 0) {
+        activeShift = cachedSchedules[0];
+      }
+
+      const labelName = document.getElementById("adminShiftName");
+      const labelHours = document.getElementById("adminShiftHours");
+
+      if (labelName && labelHours) {
+        if (activeShift) {
+          labelName.innerText = activeShift.name;
+          labelName.dataset.scheduleId = activeShift.id;
+          labelHours.innerText = `${activeShift.startTime} - ${activeShift.endTime}`;
+        } else {
+          labelName.innerText = "Luar Jam Dinas";
+          labelName.dataset.scheduleId = "";
+          labelHours.innerText = "-";
+        }
+      }
+    }
+
+    /**
      * Memproses RFID setelah berhasil terbaca sensor NFC
      */
     function handleRfidScanned(uid) {
       if (!currentUser) return;
       
-      const notes = document.getElementById("patrolNotes").value;
-      const activeShiftId = document.getElementById("activeShiftName").dataset.scheduleId || "";
+      // Deteksi catatan tambahan dari view Petugas ataupun Admin
+      let notes = "";
+      let activeShiftId = "";
+
+      if (currentUser.role === "Admin") {
+        notes = document.getElementById("adminPatrolNotes").value;
+        activeShiftId = (document.getElementById("adminShiftName") && document.getElementById("adminShiftName").dataset.scheduleId) || "";
+      } else {
+        notes = document.getElementById("patrolNotes").value;
+        activeShiftId = document.getElementById("activeShiftName").dataset.scheduleId || "";
+      }
 
       showLoading("Menyimpan Log Patroli...");
       
@@ -852,11 +1271,23 @@
             showToast(`BERHASIL! Checkpoint Ter-Scan: "${response.location}". Status: ${response.status}`, "success");
             playBeep();
             
-            document.getElementById("patrolNotes").value = "";
-            document.getElementById("manualUid").value = "";
+            // Bersihkan inputan
+            const notesEl = document.getElementById("patrolNotes");
+            const adminNotesEl = document.getElementById("adminPatrolNotes");
+            const manualUidEl = document.getElementById("manualUid");
+            const adminManualUidEl = document.getElementById("adminManualUid");
+
+            if (notesEl) notesEl.value = "";
+            if (adminNotesEl) adminNotesEl.value = "";
+            if (manualUidEl) manualUidEl.value = "";
+            if (adminManualUidEl) adminManualUidEl.value = "";
             
-            showLoading("Memperbarui log...");
-            loadOfficerLogs(() => hideLoading());
+            if (currentUser.role === "Admin") {
+              loadAdminLogs();
+            } else {
+              showLoading("Memperbarui log...");
+              loadOfficerLogs(() => hideLoading());
+            }
           } else {
             showToast("Gagal mencatat patroli.", "error");
           }
@@ -871,8 +1302,8 @@
     /**
      * Submit patroli via form manual fallback
      */
-    function submitManualPatrol() {
-      const uid = document.getElementById("manualUid").value.trim();
+    function submitManualPatrol(uidInputId, notesInputId) {
+      const uid = document.getElementById(uidInputId).value.trim();
       if (!uid) {
         showToast("UID RFID tidak boleh kosong!", "error");
         return;
@@ -900,6 +1331,380 @@
       }
     }
 
+    // ==============================================
+    // ADMIN DASHBOARD TABS & CRUD
+    // ==============================================
+    
+    function switchAdminTab(tabName) {
+      document.querySelectorAll(".admin-tab-content").forEach(el => el.classList.add("hidden"));
+      document.querySelectorAll(".admin-tab-btn").forEach(el => {
+        el.classList.remove("border-blue-600", "text-blue-600", "font-bold");
+        el.classList.add("border-transparent", "text-slate-500", "font-semibold");
+      });
+
+      document.getElementById(`adminTab-${tabName}`).classList.remove("hidden");
+      const activeBtn = document.getElementById(`tabBtn-${tabName}`);
+      activeBtn.classList.remove("border-transparent", "text-slate-500", "font-semibold");
+      activeBtn.classList.add("border-blue-600", "text-blue-600", "font-bold");
+
+      activeNFCScanMode = "PATROL";
+    }
+
+    /**
+     * Memuat semua data yang dibutuhkan oleh Admin
+     */
+    function loadAdminData() {
+      showLoading("Mengambil data administrasi...");
+      
+      google.script.run.withSuccessHandler(officers => {
+        cachedOfficers = officers || [];
+        renderAdminOfficers();
+        populateFilters();
+      }).getOfficers();
+
+      google.script.run.withSuccessHandler(checkpoints => {
+        cachedCheckpoints = checkpoints || [];
+        renderAdminCheckpoints();
+        populateFilters();
+      }).getCheckpoints();
+
+      google.script.run.withSuccessHandler(schedules => {
+        cachedSchedules = schedules || [];
+        renderAdminSchedules();
+        updateAdminShiftDisplay();
+      }).getSchedules();
+
+      loadAdminLogs();
+    }
+
+    function loadAdminLogs() {
+      showLoading("Memperbarui Log Kehadiran...");
+      google.script.run.withSuccessHandler(logs => {
+        cachedLogs = logs || [];
+        applyLogFilters();
+        hideLoading();
+      }).withFailureHandler(err => {
+        hideLoading();
+        showToast("Gagal mengambil log dari server.", "error");
+      }).getPatrolLogs();
+    }
+
+    /**
+     * Filter drop down populator
+     */
+    function populateFilters() {
+      const fOfficer = document.getElementById("filterOfficer");
+      const fCheckpoint = document.getElementById("filterCheckpoint");
+
+      if (fOfficer) {
+        fOfficer.innerHTML = `<option value="">-- Semua Petugas --</option>` + 
+          cachedOfficers.map(o => `<option value="${o.id}">${o.name} (${o.id})</option>`).join('');
+      }
+
+      if (fCheckpoint) {
+        fCheckpoint.innerHTML = `<option value="">-- Semua Checkpoint --</option>` + 
+          cachedCheckpoints.map(c => `<option value="${c.uid}">${c.name}</option>`).join('');
+      }
+    }
+
+    /**
+     * Menyaring baris log sesuai input filter di UI
+     */
+    function applyLogFilters() {
+      const fOfficer = document.getElementById("filterOfficer").value;
+      const fCheckpoint = document.getElementById("filterCheckpoint").value;
+      const keyword = document.getElementById("searchLog").value.toLowerCase();
+
+      const filtered = cachedLogs.filter(log => {
+        if (!log) return false;
+        const logOfficerId = log.officerId ? log.officerId.toString().toLowerCase() : '';
+        const logUid = log.uid ? log.uid.toString().toLowerCase() : '';
+        const logOfficerName = log.officerName ? log.officerName.toString().toLowerCase() : '';
+        const logLocation = log.location ? log.location.toString().toLowerCase() : '';
+        const logStatus = log.status ? log.status.toString().toLowerCase() : '';
+        const logNotes = log.notes ? log.notes.toString().toLowerCase() : '';
+
+        const matchOfficer = !fOfficer || logOfficerId === fOfficer.toLowerCase();
+        const matchCheckpoint = !fCheckpoint || logUid === fCheckpoint.toLowerCase();
+        const matchText = !keyword || 
+          logOfficerName.includes(keyword) || 
+          logLocation.includes(keyword) || 
+          logStatus.includes(keyword) || 
+          logNotes.includes(keyword) ||
+          logUid.includes(keyword);
+
+        return matchOfficer && matchCheckpoint && matchText;
+      });
+
+      const tbody = document.getElementById("adminLogsTableBody");
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-400">Tidak ada data log yang cocok</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(log => {
+        const formattedDate = formatDateString(log.timestamp);
+        return `
+          <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+            <td class="py-3 px-4 font-semibold text-xs whitespace-nowrap">${formattedDate}</td>
+            <td class="py-3 px-4">
+              <span class="font-bold block">${log.officerName || '-'}</span>
+              <span class="text-xs text-slate-400">ID: ${log.officerId || '-'}</span>
+            </td>
+            <td class="py-3 px-4 font-semibold text-blue-900">${log.location || '-'}</td>
+            <td class="py-3 px-4 font-mono text-xs text-slate-400">${log.uid || '-'}</td>
+            <td class="py-3 px-4">
+              <span class="px-2 py-1 rounded-full text-xs font-semibold ${log.status && log.status.toString().includes('Sesuai') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}">
+                ${log.status || 'Tidak Diketahui'}
+              </span>
+            </td>
+            <td class="py-3 px-4 text-slate-500 italic max-w-xs truncate" title="${log.notes || ''}">${log.notes || '-'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    /**
+     * Render daftar petugas di sub-tab kelola petugas
+     */
+    function renderAdminOfficers() {
+      const tbody = document.getElementById("officersTableBody");
+      tbody.innerHTML = cachedOfficers.map(o => `
+        <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+          <td class="py-3 px-4 font-bold text-slate-600">${o.id}</td>
+          <td class="py-3 px-4 font-semibold">${o.name}</td>
+          <td class="py-3 px-4 font-mono text-slate-400">••••</td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-1 rounded-full text-xs font-semibold ${o.role === 'Admin' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-800'}">
+              ${o.role}
+            </span>
+          </td>
+          <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+            <button onclick="editOfficer('${o.id}', '${o.name}', '${o.role}')" class="text-xs font-semibold px-2 py-1 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition">Ubah</button>
+            <button onclick="deleteOfficer('${o.id}')" class="text-xs font-semibold px-2 py-1 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition">Hapus</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    /**
+     * Submit simpan / update petugas ke server
+     */
+    function handleSaveOfficer(e) {
+      e.preventDefault();
+      const id = document.getElementById("officerId").value.trim();
+      const name = document.getElementById("officerName").value.trim();
+      const pin = document.getElementById("officerPin").value.trim();
+      const role = document.getElementById("officerRole").value;
+
+      showLoading("Menyimpan Data Petugas...");
+      google.script.run
+        .withSuccessHandler(res => {
+          hideLoading();
+          showToast("Data petugas berhasil disimpan!", "success");
+          resetOfficerForm();
+          loadAdminData();
+        })
+        .withFailureHandler(err => {
+          hideLoading();
+          showToast("Gagal menyimpan data petugas: " + err, "error");
+        })
+        .saveOfficer({id, name, pin, role});
+    }
+
+    function editOfficer(id, name, role) {
+      document.getElementById("officerFormTitle").innerText = "Ubah Data Petugas";
+      const idInput = document.getElementById("officerId");
+      idInput.value = id;
+      idInput.disabled = true; 
+      
+      document.getElementById("officerName").value = name;
+      document.getElementById("officerPin").value = ""; 
+      document.getElementById("officerRole").value = role;
+    }
+
+    function deleteOfficer(id) {
+      if (id.toLowerCase() === currentUser.id.toLowerCase()) {
+        showToast("Anda tidak bisa menghapus akun Anda sendiri yang sedang aktif!", "warning");
+        return;
+      }
+      if (confirm(`Apakah Anda yakin ingin menghapus petugas dengan ID: ${id}?`)) {
+        showLoading("Menghapus Petugas...");
+        google.script.run.withSuccessHandler(res => {
+          hideLoading();
+          showToast("Petugas berhasil dihapus.", "success");
+          loadAdminData();
+        }).deleteOfficer(id);
+      }
+    }
+
+    function resetOfficerForm() {
+      document.getElementById("officerFormTitle").innerText = "Tambah Petugas Baru";
+      const idInput = document.getElementById("officerId");
+      idInput.value = "";
+      idInput.disabled = false;
+      document.getElementById("officerName").value = "";
+      document.getElementById("officerPin").value = "";
+      document.getElementById("officerRole").value = "Petugas";
+    }
+
+    /**
+     * Render daftar checkpoint RFID di sub-tab admin
+     */
+    function renderAdminCheckpoints() {
+      const tbody = document.getElementById("checkpointsTableBody");
+      tbody.innerHTML = cachedCheckpoints.map(c => `
+        <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+          <td class="py-3 px-4 font-mono font-bold text-xs text-blue-900">${c.uid}</td>
+          <td class="py-3 px-4 font-semibold">${c.name}</td>
+          <td class="py-3 px-4 text-slate-500">${c.description || '-'}</td>
+          <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+            <button onclick="editCheckpoint('${c.uid}', '${c.name}', '${c.description}')" class="text-xs font-semibold px-2 py-1 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition">Ubah</button>
+            <button onclick="deleteCheckpoint('${c.uid}')" class="text-xs font-semibold px-2 py-1 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition">Hapus</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function handleSaveCheckpoint(e) {
+      e.preventDefault();
+      const uid = document.getElementById("checkpointUid").value.trim().toLowerCase();
+      const name = document.getElementById("checkpointName").value.trim();
+      const description = document.getElementById("checkpointDescription").value.trim();
+
+      showLoading("Menyimpan Checkpoint RFID...");
+      google.script.run
+        .withSuccessHandler(res => {
+          hideLoading();
+          showToast("Checkpoint berhasil disimpan!", "success");
+          resetCheckpointForm();
+          loadAdminData();
+        })
+        .withFailureHandler(err => {
+          showToast("Gagal menyimpan checkpoint: " + err, "error");
+        })
+        .saveCheckpoint({uid, name, description});
+    }
+
+    function editCheckpoint(uid, name, description) {
+      document.getElementById("checkpointFormTitle").innerText = "Ubah Checkpoint";
+      const uidInput = document.getElementById("checkpointUid");
+      uidInput.value = uid;
+      uidInput.disabled = true;
+      document.getElementById("checkpointName").value = name;
+      document.getElementById("checkpointDescription").value = description;
+    }
+
+    function deleteCheckpoint(uid) {
+      if (confirm(`Hapus checkpoint dengan RFID UID: ${uid}?`)) {
+        showLoading("Menghapus Checkpoint...");
+        google.script.run.withSuccessHandler(res => {
+          hideLoading();
+          showToast("Checkpoint berhasil dihapus.", "success");
+          loadAdminData();
+        }).deleteCheckpoint(uid);
+      }
+    }
+
+    function resetCheckpointForm() {
+      document.getElementById("checkpointFormTitle").innerText = "Daftarkan Kartu RFID";
+      const uidInput = document.getElementById("checkpointUid");
+      uidInput.value = "";
+      uidInput.disabled = false;
+      document.getElementById("checkpointName").value = "";
+      document.getElementById("checkpointDescription").value = "";
+      activeNFCScanMode = "PATROL";
+    }
+
+    /**
+     * Render daftar jadwal periodik di sub-tab admin
+     */
+    function renderAdminSchedules() {
+      const tbody = document.getElementById("schedulesTableBody");
+      tbody.innerHTML = cachedSchedules.map(s => `
+        <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+          <td class="py-3 px-4 font-bold text-slate-600">${s.id}</td>
+          <td class="py-3 px-4 font-semibold text-blue-900">${s.name}</td>
+          <td class="py-3 px-4 whitespace-nowrap"><span class="px-2 py-1 bg-yellow-50 text-yellow-800 rounded-lg text-xs font-bold font-mono">${s.startTime} s.d ${s.endTime}</span></td>
+          <td class="py-3 px-4 text-slate-500">${s.description || '-'}</td>
+          <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+            <button onclick="editSchedule('${s.id}', '${s.name}', '${s.startTime}', '${s.endTime}', '${s.description}')" class="text-xs font-semibold px-2 py-1 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition">Ubah</button>
+            <button onclick="deleteSchedule('${s.id}')" class="text-xs font-semibold px-2 py-1 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition">Hapus</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function handleSaveSchedule(e) {
+      e.preventDefault();
+      const id = document.getElementById("scheduleId").value.trim();
+      const name = document.getElementById("scheduleName").value.trim();
+      const startTime = document.getElementById("scheduleStartTime").value.trim();
+      const endTime = document.getElementById("scheduleEndTime").value.trim();
+      const description = document.getElementById("scheduleDescription").value.trim();
+
+      showLoading("Menyimpan Jadwal...");
+      google.script.run
+        .withSuccessHandler(res => {
+          hideLoading();
+          showToast("Jadwal patroli periodik berhasil disimpan!", "success");
+          resetScheduleForm();
+          loadAdminData();
+        })
+        .withFailureHandler(err => {
+          showToast("Gagal menyimpan jadwal: " + err, "error");
+        })
+        .saveSchedule({id, name, startTime, endTime, description});
+    }
+
+    function editSchedule(id, name, startTime, endTime, description) {
+      document.getElementById("scheduleFormTitle").innerText = "Ubah Jadwal";
+      const idInput = document.getElementById("scheduleId");
+      idInput.value = id;
+      idInput.disabled = true;
+      document.getElementById("scheduleName").value = name;
+      document.getElementById("scheduleStartTime").value = startTime;
+      document.getElementById("scheduleEndTime").value = endTime;
+      document.getElementById("scheduleDescription").value = description;
+    }
+
+    function deleteSchedule(id) {
+      if (confirm(`Apakah Anda yakin ingin menghapus jadwal dengan ID: ${id}?`)) {
+        showLoading("Menghapus Jadwal...");
+        google.script.run.withSuccessHandler(res => {
+          hideLoading();
+          showToast("Jadwal berhasil dihapus.", "success");
+          loadAdminData();
+        }).deleteSchedule(id);
+      }
+    }
+
+    function resetScheduleForm() {
+      document.getElementById("scheduleFormTitle").innerText = "Atur Jadwal Patroli Periodik";
+      const idInput = document.getElementById("scheduleId");
+      idInput.value = "";
+      idInput.disabled = false;
+      document.getElementById("scheduleName").value = "";
+      document.getElementById("scheduleStartTime").value = "";
+      document.getElementById("scheduleEndTime").value = "";
+      document.getElementById("scheduleDescription").value = "";
+    }
+
+    /**
+     * Membuka spreadsheet di tab browser baru
+     */
+    function exportToSpreadsheet() {
+      showLoading("Menghubungkan ke Google Sheets...");
+      google.script.run.withSuccessHandler(result => {
+        hideLoading();
+        if (result.spreadsheetUrl) {
+          window.open(result.spreadsheetUrl, '_blank');
+        } else {
+          showToast("Url spreadsheet tidak ditemukan. Silakan jalankan setup terlebih dahulu.", "error");
+        }
+      }).setupDatabase();
+    }
+
     /**
      * Handler pemicu inisialisasi awal spreadsheet
      */
@@ -911,6 +1716,9 @@
           if (res.success) {
             showToast("Database Spreadsheet berhasil dibuat dan terhubung!", "success");
             document.getElementById("setupBanner").classList.add("hidden");
+            if (currentUser && currentUser.role === "Admin") {
+              loadAdminData();
+            }
           }
         })
         .withFailureHandler(err => {
