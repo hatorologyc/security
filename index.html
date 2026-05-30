@@ -339,71 +339,90 @@
       window.google = {
         script: {
           run: {
-            successHandler: null,
-            failureHandler: null,
-            withSuccessHandler: function(handler) {
-              this.successHandler = handler;
-              return this;
+            // Membuat Isolated Runner Context (Mencegah Callback Saling Menimpa)
+            withSuccessHandler: function(successFn) {
+              return this._createRunner(successFn, null);
             },
-            withFailureHandler: function(handler) {
-              this.failureHandler = handler;
-              return this;
+            withFailureHandler: function(failureFn) {
+              return this._createRunner(null, failureFn);
+            },
+            _createRunner: function(successFn, failureFn) {
+              return {
+                successHandler: successFn,
+                failureHandler: failureFn,
+                withSuccessHandler: function(fn) {
+                  this.successHandler = fn;
+                  return this;
+                },
+                withFailureHandler: function(fn) {
+                  this.failureHandler = fn;
+                  return this;
+                },
+                _execute: async function(actionName, args) {
+                  let gasWebAppUrl = localStorage.getItem("gas_api_url") || "";
+                  
+                  if (!gasWebAppUrl) {
+                    document.getElementById("loadingOverlay").classList.add("hidden");
+                    toggleApiModal(true);
+                    if (this.failureHandler) this.failureHandler("URL Web App belum diatur.");
+                    return;
+                  }
+                  
+                  const readActions = ["getSchedules", "getCheckpoints", "getPatrolLogs", "getOfficers"];
+                  const isReadAction = readActions.includes(actionName);
+                  
+                  try {
+                    let response;
+                    
+                    if (isReadAction) {
+                      const separator = gasWebAppUrl.includes("?") ? "&" : "?";
+                      const fetchUrl = `${gasWebAppUrl}${separator}action=${actionName}&t=${Date.now()}`;
+                      response = await fetch(fetchUrl, { method: "GET" });
+                    } else {
+                      response = await fetch(gasWebAppUrl, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "text/plain;charset=utf-8"
+                        },
+                        body: JSON.stringify({
+                          action: actionName,
+                          args: args
+                        })
+                      });
+                    }
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                      if (this.successHandler) this.successHandler(result.data);
+                    } else {
+                      if (this.failureHandler) this.failureHandler(result.error);
+                    }
+                  } catch (err) {
+                    console.error("Fetch API Error:", err);
+                    if (this.failureHandler) this.failureHandler("Koneksi API Gagal. Pastikan URL skrip benar dan izin 'Anyone' aktif.");
+                  }
+                },
+                
+                // Method Wrappers yang terisolasi
+                loginUser: function(u, p) { this._execute("loginUser", [u, p]); },
+                getSchedules: function() { this._execute("getSchedules", []); },
+                getCheckpoints: function() { this._execute("getCheckpoints", []); },
+                getPatrolLogs: function() { this._execute("getPatrolLogs", []); },
+                submitPatrolLog: function(l) { this._execute("submitPatrolLog", [l]); },
+                setupDatabase: function() { this._execute("setupDatabase", []); }
+              };
             },
             
-            _execute: async function(actionName, args) {
-              let gasWebAppUrl = localStorage.getItem("gas_api_url") || "";
-              
-              if (!gasWebAppUrl) {
-                document.getElementById("loadingOverlay").classList.add("hidden");
-                toggleApiModal(true);
-                if (this.failureHandler) this.failureHandler("URL Web App belum diatur.");
-                return;
-              }
-              
-              const readActions = ["getSchedules", "getCheckpoints", "getPatrolLogs", "getOfficers"];
-              const isReadAction = readActions.includes(actionName);
-              
-              try {
-                let response;
-                
-                if (isReadAction) {
-                  const separator = gasWebAppUrl.includes("?") ? "&" : "?";
-                  const fetchUrl = `${gasWebAppUrl}${separator}action=${actionName}&t=${Date.now()}`;
-                  response = await fetch(fetchUrl, { method: "GET" });
-                } else {
-                  response = await fetch(gasWebAppUrl, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "text/plain;charset=utf-8"
-                    },
-                    body: JSON.stringify({
-                      action: actionName,
-                      args: args
-                    })
-                  });
-                }
-                
-                const result = await response.json();
-                if (result.success) {
-                  if (this.successHandler) this.successHandler(result.data);
-                } else {
-                  if (this.failureHandler) this.failureHandler(result.error);
-                }
-              } catch (err) {
-                console.error("Fetch API Error:", err);
-                if (this.failureHandler) this.failureHandler("Koneksi API Gagal. Pastikan URL skrip benar dan izin 'Anyone' aktif.");
-              }
-            },
-            
-            loginUser: function(u, p) { this._execute("loginUser", [u, p]); },
-            getSchedules: function() { this._execute("getSchedules", []); },
-            getCheckpoints: function() { this._execute("getCheckpoints", []); },
-            getPatrolLogs: function() { this._execute("getPatrolLogs", []); },
-            submitPatrolLog: function(l) { this._execute("submitPatrolLog", [l]); },
-            setupDatabase: function() { this._execute("setupDatabase", []); }
+            // Default Wrappers jika dipanggil tanpa chain `.withSuccessHandler()`
+            loginUser: function(u, p) { this._createRunner(null, null).loginUser(u, p); },
+            getSchedules: function() { this._createRunner(null, null).getSchedules(); },
+            getCheckpoints: function() { this._createRunner(null, null).getCheckpoints(); },
+            getPatrolLogs: function() { this._createRunner(null, null).getPatrolLogs(); },
+            submitPatrolLog: function(l) { this._createRunner(null, null).submitPatrolLog(l); },
+            setupDatabase: function() { this._createRunner(null, null).setupDatabase(); }
           }
-        }
-      };
+        };
+      }
     }
 
     /**
@@ -504,7 +523,7 @@
         });
 
         hideLoading();
-        showToast("NFC Scanner Aktif. Tempelkan kartu RFID sekarang.", "info");
+        showToast("NFC Scanner Hack Aktif. Tempelkan kartu RFID sekarang.", "info");
       } catch (err) {
         hideLoading();
         if (IS_STANDALONE) {
