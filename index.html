@@ -52,10 +52,10 @@
         </div>
       </div>
       
-      <!-- USER INFO & GET DATA / SYNC BUTTON -->
+      <!-- USER INFO & HEADER ACTION (SINKRONKAN DI-HIDE UTK KEBERSIHAN TAMPILAN) -->
       <div id="userInfo" class="hidden flex items-center space-x-3">
-        <!-- TOMBOL GET DATA / SINKRONKAN -->
-        <button onclick="manualSync()" id="syncHeaderBtn" class="flex items-center space-x-1.5 bg-blue-800 hover:bg-blue-700 active:bg-blue-950 text-white text-xs px-3 py-2 rounded-xl transition-all border border-blue-700 font-semibold shadow-sm" title="Ambil data terbaru dari Spreadsheet">
+        <!-- TOMBOL GET DATA / SINKRONKAN (DI-HIDE BERDASARKAN REQUEST) -->
+        <button onclick="manualSync()" id="syncHeaderBtn" class="hidden flex items-center space-x-1.5 bg-blue-800 hover:bg-blue-700 active:bg-blue-950 text-white text-xs px-3 py-2 rounded-xl transition-all border border-blue-700 font-semibold shadow-sm" title="Ambil data terbaru dari Spreadsheet">
           <i data-lucide="refresh-cw" class="w-4 h-4" id="syncHeaderIcon"></i>
           <span class="hidden md:inline">Sinkronkan Data</span>
         </button>
@@ -265,14 +265,15 @@
         </div>
       </div>
 
-      <!-- Riwayat Terkini Petugas Ini -->
+      <!-- Riwayat Terkini Petugas Ini (SINKRONKAN DI-HIDE UTK KEBERSIHAN TAMPILAN) -->
       <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div class="p-6 border-b border-slate-100 flex justify-between items-center">
           <h3 class="text-lg font-bold flex items-center space-x-2">
             <i data-lucide="history" class="w-5 h-5 text-slate-500"></i>
             <span>Aktivitas Patroli Terkini Anda</span>
           </h3>
-          <button onclick="manualSync()" class="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center space-x-1">
+          <!-- SINKRONKAN ULANG DI-HIDE BERDASARKAN REQUEST -->
+          <button onclick="manualSync()" class="hidden text-xs text-blue-600 hover:text-blue-800 font-bold items-center space-x-1">
             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
             <span>Sinkronkan Ulang</span>
           </button>
@@ -643,12 +644,15 @@
     let isWebNFCAvailable = false;
     let activeNFCScanMode = "PATROL"; // PATROL atau INPUT_CHECKPOINT
 
+    // Client-side local double tap prevention state (2 Menit / 120 Detik Cooldown)
+    let lastTapTimes = {};
+    const TAPPING_COOLDOWN_MS = 120000; 
+
     // DETEKSI APAKAH DI-RUN DI LUAR IFRAME GOOGLE (STANDALONE WEB)
     const IS_STANDALONE = (typeof google === 'undefined' || !google.script || !google.script.run);
 
     // ==============================================
     // DYNAMIC API POLYFILL / ROUTER (CORS Bypass)
-    // * Memisahkan rute GET untuk membaca, dan POST untuk menulis
     // ==============================================
     if (IS_STANDALONE) {
       document.getElementById("apiConfigTriggerContainer").classList.remove("hidden");
@@ -667,7 +671,6 @@
               return this;
             },
             
-            // Integrasi Lintas-Domain (GitHub Pages -> Google Sheets)
             _execute: async function(actionName, args) {
               let gasWebAppUrl = localStorage.getItem("gas_api_url") || "";
               
@@ -685,12 +688,10 @@
                 let response;
                 
                 if (isReadAction) {
-                  // Bypass CORS Jitu: Membaca data menggunakan metode GET murni
                   const separator = gasWebAppUrl.includes("?") ? "&" : "?";
                   const fetchUrl = `${gasWebAppUrl}${separator}action=${actionName}&t=${Date.now()}`;
                   response = await fetch(fetchUrl, { method: "GET" });
                 } else {
-                  // Menulis data menggunakan POST payload
                   response = await fetch(gasWebAppUrl, {
                     method: "POST",
                     headers: {
@@ -1015,10 +1016,7 @@
       const syncIcon = document.getElementById("syncHeaderIcon");
       if (syncIcon) syncIcon.classList.add("spin-active");
       
-      showToast("Memulai sinkronisasi data dari Google Sheets...", "info");
-      
       if (currentUser && currentUser.role === "Admin") {
-        // Mode Admin: Ambil semua log, checkpoint, petugas, jadwal
         google.script.run.withSuccessHandler(officers => {
           cachedOfficers = officers || [];
           renderAdminOfficers();
@@ -1041,11 +1039,13 @@
           cachedLogs = logs || [];
           applyLogFilters();
           if (syncIcon) syncIcon.classList.remove("spin-active");
-          showToast("Sinkronisasi data Admin sukses!", "success");
+        }).withFailureHandler(err => {
+          // Gagal mengambil log disembunyikan secara senyap
+          console.error("Silent Log Sync Fail:", err);
+          if (syncIcon) syncIcon.classList.remove("spin-active");
         }).getPatrolLogs();
         
       } else if (currentUser) {
-        // Mode Petugas: Ambil jadwal, checkpoint, dan log tap hari ini
         let schedulesLoaded = false;
         let checkpointsLoaded = false;
         let logsLoaded = false;
@@ -1053,7 +1053,6 @@
         const checkAllManualLoaded = () => {
           if (schedulesLoaded && checkpointsLoaded && logsLoaded) {
             if (syncIcon) syncIcon.classList.remove("spin-active");
-            showToast("Sinkronisasi data Petugas sukses!", "success");
           }
         };
 
@@ -1077,7 +1076,6 @@
         });
       } else {
         if (syncIcon) syncIcon.classList.remove("spin-active");
-        showToast("Harap login terlebih dahulu untuk sinkronisasi.", "warning");
       }
     }
 
@@ -1173,13 +1171,13 @@
             }
           } catch (err) {
             console.error("Error processing officer logs:", err);
-            showToast("Ada masalah pemrosesan log: " + err.message, "warning");
           } finally {
             if (callback) callback();
           }
         })
         .withFailureHandler(err => {
-          showToast("Gagal memuat log patroli terbaru.", "error");
+          // Gagal memuat log disembunyikan secara senyap
+          console.error("Silent Load Officer Logs Fail:", err);
           if (callback) callback();
         })
         .getPatrolLogs();
@@ -1239,12 +1237,19 @@
     }
 
     /**
-     * Memproses RFID setelah berhasil terbaca sensor NFC
+     * Memproses RFID setelah berhasil terbaca sensor NFC (Termasuk Proteksi Tapping Ganda)
      */
     function handleRfidScanned(uid) {
       if (!currentUser) return;
+
+      // 1. Validasi Cooldown di Sisi Klien
+      const now = Date.now();
+      if (lastTapTimes[uid] && (now - lastTapTimes[uid] < TAPPING_COOLDOWN_MS)) {
+        const remainingSec = Math.ceil((TAPPING_COOLDOWN_MS - (now - lastTapTimes[uid])) / 1000);
+        showToast(`RFID ini baru saja di-tap! Mohon tunggu ${remainingSec} detik lagi untuk berpatroli kembali di titik yang sama.`, "warning");
+        return;
+      }
       
-      // Deteksi catatan tambahan dari view Petugas ataupun Admin
       let notes = "";
       let activeShiftId = "";
 
@@ -1269,6 +1274,9 @@
         .withSuccessHandler(response => {
           hideLoading();
           if (response.success) {
+            // Catat waktu sukses tap di memori lokal klien
+            lastTapTimes[uid] = Date.now();
+
             showToast(`BERHASIL! Checkpoint Ter-Scan: "${response.location}". Status: ${response.status}`, "success");
             playBeep();
             
@@ -1289,6 +1297,9 @@
               showLoading("Memperbarui log...");
               loadOfficerLogs(() => hideLoading());
             }
+          } else if (response.isCooldown) {
+            // Log ganda dibatalkan oleh proteksi cooldown server
+            showToast(response.message, "warning");
           } else {
             showToast("Gagal mencatat patroli.", "error");
           }
@@ -1386,7 +1397,8 @@
         hideLoading();
       }).withFailureHandler(err => {
         hideLoading();
-        showToast("Gagal mengambil log dari server.", "error");
+        // Gagal mengambil log disembunyikan secara senyap sesuai instruksi
+        console.error("Silent Load Admin Logs Fail:", err);
       }).getPatrolLogs();
     }
 
