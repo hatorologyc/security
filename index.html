@@ -666,84 +666,93 @@
     const IS_STANDALONE = (typeof google === 'undefined' || !google.script || !google.script.run);
 
     // ==============================================
-    // DYNAMIC API POLYFILL / ROUTER (CORS Bypass)
+    // ISOLATED CONNECTION RUNNER (Solusi Race Condition)
     // ==============================================
+    class GasRunner {
+      constructor() {
+        this.successHandler = null;
+        this.failureHandler = null;
+      }
+      
+      withSuccessHandler(handler) {
+        this.successHandler = handler;
+        return this;
+      }
+      
+      withFailureHandler(handler) {
+        this.failureHandler = handler;
+        return this;
+      }
+      
+      async _execute(actionName, args) {
+        let gasWebAppUrl = localStorage.getItem("gas_api_url") || "";
+        
+        if (!gasWebAppUrl) {
+          document.getElementById("loadingOverlay").classList.add("hidden");
+          toggleApiModal(true);
+          if (this.failureHandler) this.failureHandler("URL Web App belum diatur.");
+          return;
+        }
+        
+        const readActions = ["getSchedules", "getCheckpoints", "getPatrolLogs", "getOfficers"];
+        const isReadAction = readActions.includes(actionName);
+        
+        try {
+          let response;
+          
+          if (isReadAction) {
+            const separator = gasWebAppUrl.includes("?") ? "&" : "?";
+            const fetchUrl = `${gasWebAppUrl}${separator}action=${actionName}&t=${Date.now()}`;
+            response = await fetch(fetchUrl, { method: "GET" });
+          } else {
+            response = await fetch(gasWebAppUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "text/plain;charset=utf-8"
+              },
+              body: JSON.stringify({
+                action: actionName,
+                args: args
+              })
+            });
+          }
+          
+          const result = await response.json();
+          if (result.success) {
+            if (this.successHandler) this.successHandler(result.data);
+          } else {
+            if (this.failureHandler) this.failureHandler(result.error);
+          }
+        } catch (err) {
+          console.error("Fetch API Error untuk " + actionName + ":", err);
+          if (this.failureHandler) this.failureHandler("Koneksi API Gagal. Pastikan URL skrip benar.");
+        }
+      }
+      
+      // Definisikan semua mapping API secara dinamis dan independen
+      loginUser(u, p) { this._execute("loginUser", [u, p]); }
+      getSchedules() { this._execute("getSchedules", []); }
+      getCheckpoints() { this._execute("getCheckpoints", []); }
+      getPatrolLogs() { this._execute("getPatrolLogs", []); }
+      submitPatrolLog(l) { this._execute("submitPatrolLog", [l]); }
+      getOfficers() { this._execute("getOfficers", []); }
+      saveOfficer(o) { this._execute("saveOfficer", [o]); }
+      deleteOfficer(i) { this._execute("deleteOfficer", [i]); }
+      saveCheckpoint(c) { this._execute("saveCheckpoint", [c]); }
+      deleteCheckpoint(u) { this._execute("deleteCheckpoint", [u]); }
+      saveSchedule(s) { this._execute("saveSchedule", [s]); }
+      deleteSchedule(i) { this._execute("deleteSchedule", [i]); }
+      setupDatabase() { this._execute("setupDatabase", []); }
+    }
+
     if (IS_STANDALONE) {
       document.getElementById("apiConfigTriggerContainer").classList.remove("hidden");
       
+      // Inject getter dinamis sehingga menghasilkan instance object baru di setiap call
       window.google = {
         script: {
-          run: {
-            successHandler: null,
-            failureHandler: null,
-            withSuccessHandler: function(handler) {
-              this.successHandler = handler;
-              return this;
-            },
-            withFailureHandler: function(handler) {
-              this.failureHandler = handler;
-              return this;
-            },
-            
-            _execute: async function(actionName, args) {
-              let gasWebAppUrl = localStorage.getItem("gas_api_url") || "";
-              
-              if (!gasWebAppUrl) {
-                document.getElementById("loadingOverlay").classList.add("hidden");
-                toggleApiModal(true);
-                if (this.failureHandler) this.failureHandler("URL Web App belum diatur.");
-                return;
-              }
-              
-              const readActions = ["getSchedules", "getCheckpoints", "getPatrolLogs", "getOfficers"];
-              const isReadAction = readActions.includes(actionName);
-              
-              try {
-                let response;
-                
-                if (isReadAction) {
-                  const separator = gasWebAppUrl.includes("?") ? "&" : "?";
-                  const fetchUrl = `${gasWebAppUrl}${separator}action=${actionName}&t=${Date.now()}`;
-                  response = await fetch(fetchUrl, { method: "GET" });
-                } else {
-                  response = await fetch(gasWebAppUrl, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "text/plain;charset=utf-8"
-                    },
-                    body: JSON.stringify({
-                      action: actionName,
-                      args: args
-                    })
-                  });
-                }
-                
-                const result = await response.json();
-                if (result.success) {
-                  if (this.successHandler) this.successHandler(result.data);
-                } else {
-                  if (this.failureHandler) this.failureHandler(result.error);
-                }
-              } catch (err) {
-                console.error("Fetch API Error:", err);
-                if (this.failureHandler) this.failureHandler("Koneksi API Gagal. Pastikan URL skrip benar dan izin 'Anyone' aktif.");
-              }
-            },
-            
-            // Mocking Wrapper GAS
-            loginUser: function(u, p) { this._execute("loginUser", [u, p]); },
-            getSchedules: function() { this._execute("getSchedules", []); },
-            getCheckpoints: function() { this._execute("getCheckpoints", []); },
-            getPatrolLogs: function() { this._execute("getPatrolLogs", []); },
-            submitPatrolLog: function(l) { this._execute("submitPatrolLog", [l]); },
-            getOfficers: function() { this._execute("getOfficers", []); },
-            saveOfficer: function(o) { this._execute("saveOfficer", [o]); },
-            deleteOfficer: function(i) { this._execute("deleteOfficer", [i]); },
-            saveCheckpoint: function(c) { this._execute("saveCheckpoint", [c]); },
-            deleteCheckpoint: function(u) { this._execute("deleteCheckpoint", [u]); },
-            saveSchedule: function(s) { this._execute("saveSchedule", [s]); },
-            deleteSchedule: function(i) { this._execute("deleteSchedule", [i]); },
-            setupDatabase: function() { this._execute("setupDatabase", []); }
+          get run() {
+            return new GasRunner();
           }
         }
       };
@@ -1275,7 +1284,7 @@
     }
 
     /**
-     * Memproses RFID setelah berhasil terbaca sensor NFC (Termasuk Proteksi Tapping Ganda)
+     * Memproses RFID setelah berhasil terbaca sensor NFC (Termasuk Proteksi Tapping Ganda & Safety Timeout)
      */
     function handleRfidScanned(uid) {
       if (!currentUser) return;
@@ -1300,6 +1309,12 @@
       }
 
       showLoading("Menyimpan Log Patroli...");
+
+      // SAFETY TIMEOUT FALLBACK - Mencegah stuck loading jika koneksi terputus di tengah jalan
+      const safetyTimeout = setTimeout(() => {
+        hideLoading();
+        showToast("Proses penyimpanan lambat. Silakan periksa kembali sinyal internet Anda.", "warning");
+      }, 15000); // Batas waktu respons aman 15 detik
       
       const logData = {
         uid: uid,
@@ -1310,6 +1325,7 @@
 
       google.script.run
         .withSuccessHandler(response => {
+          clearTimeout(safetyTimeout); // Matikan safety timeout karena respons berhasil tiba
           hideLoading();
           if (response.success) {
             // Catat waktu sukses tap di memori lokal klien
@@ -1342,6 +1358,7 @@
           }
         })
         .withFailureHandler(err => {
+          clearTimeout(safetyTimeout); // Matikan safety timeout
           hideLoading();
           showToast("Masalah Koneksi: " + err, "error");
         })
