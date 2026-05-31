@@ -271,6 +271,10 @@
           <h3 class="text-lg font-bold flex items-center space-x-2">
             <i data-lucide="history" class="w-5 h-5 text-slate-500"></i>
             <span>Aktivitas Patroli Terkini Anda</span>
+            <span class="text-xs font-normal text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center space-x-1">
+              <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+              <span>Auto-refresh Aktif</span>
+            </span>
           </h3>
           <!-- SINKRONKAN ULANG DI-HIDE BERDASARKAN REQUEST -->
           <button onclick="manualSync()" class="hidden text-xs text-blue-600 hover:text-blue-800 font-bold items-center space-x-1">
@@ -336,15 +340,22 @@
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
-              <h3 class="text-lg font-bold">Laporan Histori Patroli</h3>
+              <h3 class="text-lg font-bold flex items-center space-x-2">
+                <span>Laporan Histori Patroli</span>
+                <span class="text-xs font-normal text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full flex items-center space-x-1">
+                  <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+                  <span>Auto-Refresh Aktif (10s)</span>
+                </span>
+              </h3>
               <p class="text-xs text-slate-500">Menampilkan hingga 500 tapping RFID terbaru secara real-time</p>
             </div>
-            <div class="flex flex-wrap gap-2">
-              <button onclick="manualSync()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center space-x-1.5 transition">
+            <!-- BUTTONS HIDDEN/REMOVED AS REQUESTED (Refresh & Buka Google Sheet disembunyikan) -->
+            <div class="hidden flex-wrap gap-2">
+              <button onclick="manualSync()" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center space-x-1.5 transition">
                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                 <span>Refresh Log</span>
               </button>
-              <button onclick="exportToSpreadsheet()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center space-x-1.5 transition">
+              <button onclick="exportToSpreadsheet()" class="hidden bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center space-x-1.5 transition">
                 <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
                 <span>Buka Google Sheet</span>
               </button>
@@ -647,6 +658,9 @@
     // Client-side local double tap prevention state (2 Menit / 120 Detik Cooldown)
     let lastTapTimes = {};
     const TAPPING_COOLDOWN_MS = 120000; 
+
+    // Auto-refresh timer reference
+    let autoRefreshInterval = null;
 
     // DETEKSI APAKAH DI-RUN DI LUAR IFRAME GOOGLE (STANDALONE WEB)
     const IS_STANDALONE = (typeof google === 'undefined' || !google.script || !google.script.run);
@@ -962,6 +976,29 @@
     }
 
     // ==============================================
+    // AUTO REFRESH LOOP TIMER
+    // ==============================================
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      // Melakukan sinkronisasi background setiap 10 detik
+      autoRefreshInterval = setInterval(() => {
+        if (!currentUser) return;
+        if (currentUser.role === "Admin") {
+          loadAdminLogs(true); // Memuat data log secara background
+        } else {
+          loadOfficerLogs(null, true); // Memuat log officer secara background
+        }
+      }, 10000);
+    }
+
+    function stopAutoRefresh() {
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+      }
+    }
+
+    // ==============================================
     // LOGIN & AUTENTIKASI UTAMA
     // ==============================================
     function handleLogin(e) {
@@ -990,6 +1027,8 @@
               loadOfficerDashboard();
               showSection("officerSection");
             }
+            // Aktifkan auto refresh log
+            startAutoRefresh();
           } else {
             showToast(result.message || "ID atau PIN salah!", "error");
           }
@@ -1003,6 +1042,7 @@
 
     function logout() {
       currentUser = null;
+      stopAutoRefresh();
       document.getElementById("loginId").value = "";
       document.getElementById("loginPin").value = "";
       showSection("loginSection");
@@ -1040,7 +1080,6 @@
           applyLogFilters();
           if (syncIcon) syncIcon.classList.remove("spin-active");
         }).withFailureHandler(err => {
-          // Gagal mengambil log disembunyikan secara senyap
           console.error("Silent Log Sync Fail:", err);
           if (syncIcon) syncIcon.classList.remove("spin-active");
         }).getPatrolLogs();
@@ -1131,7 +1170,7 @@
       });
     }
 
-    function loadOfficerLogs(callback) {
+    function loadOfficerLogs(callback, isBackground = false) {
       google.script.run
         .withSuccessHandler(logs => {
           try {
@@ -1176,7 +1215,6 @@
           }
         })
         .withFailureHandler(err => {
-          // Gagal memuat log disembunyikan secara senyap
           console.error("Silent Load Officer Logs Fail:", err);
           if (callback) callback();
         })
@@ -1298,7 +1336,6 @@
               loadOfficerLogs(() => hideLoading());
             }
           } else if (response.isCooldown) {
-            // Log ganda dibatalkan oleh proteksi cooldown server
             showToast(response.message, "warning");
           } else {
             showToast("Gagal mencatat patroli.", "error");
@@ -1389,15 +1426,20 @@
       loadAdminLogs();
     }
 
-    function loadAdminLogs() {
-      showLoading("Memperbarui Log Kehadiran...");
+    function loadAdminLogs(isBackground = false) {
+      if (!isBackground) {
+        showLoading("Memperbarui Log Kehadiran...");
+      }
       google.script.run.withSuccessHandler(logs => {
         cachedLogs = logs || [];
         applyLogFilters();
-        hideLoading();
+        if (!isBackground) {
+          hideLoading();
+        }
       }).withFailureHandler(err => {
-        hideLoading();
-        // Gagal mengambil log disembunyikan secara senyap sesuai instruksi
+        if (!isBackground) {
+          hideLoading();
+        }
         console.error("Silent Load Admin Logs Fail:", err);
       }).getPatrolLogs();
     }
